@@ -2,12 +2,10 @@ const express = require('express');
 const net = require('net');
 const cors = require('cors');
 
-// Parse command line arguments
 const args = process.argv.slice(2);
 const SHARP_PORT = args[0] ? parseInt(args[0]) : 5000;
 const HTTP_PORT = SHARP_PORT + 1;
 
-// Add new utility functions at the top
 function parseSharpAddress(address) {
     const match = address.match(/^(.+)#(.+?)(?::(\d+))?$/);
     if (!match) throw new Error('Invalid SHARP address format');
@@ -131,13 +129,11 @@ function sendError(socket, message) {
     socket.end();
 }
 
-// Modified processEmail function
 async function processEmail(state) {
     try {
         const recipient = parseSharpAddress(state.to);
         console.log(`Processing email for: ${recipient.username} at ${recipient.host}:${recipient.port}`);
 
-        // Check if the recipient address points to this server instance
         if ((recipient.host === 'localhost' || recipient.host === '127.0.0.1') && recipient.port === SHARP_PORT) {
             console.log(`Handling local delivery for ${recipient.username}`);
             console.log('Received local email:', {
@@ -149,7 +145,6 @@ async function processEmail(state) {
             return Promise.resolve();
         }
 
-        // If not local, proceed with forwarding to the remote server
         console.log(`Forwarding to remote SHARP server: ${recipient.host}:${recipient.port}`);
         return new Promise((resolve, reject) => {
             const remoteClient = new net.Socket();
@@ -182,7 +177,6 @@ async function processEmail(state) {
                         if (currentStep < steps.length) {
                             remoteClient.write(JSON.stringify(steps[currentStep++]) + '\n');
                         } else {
-                            // Resolve the promise *after* the remote client has ended
                             remoteClient.end(() => {
                                 resolve();
                             });
@@ -209,10 +203,12 @@ app.post('/', async (req, res) => {
     const { from, to, subject, body } = req.body;
 
     try {
-        const recipient = parseSharpAddress(to);
+        parseSharpAddress(to);
+
         const client = new net.Socket();
 
-        client.connect(SHARP_PORT, recipient.host, async () => { // Connect to the recipient's host
+        client.connect(SHARP_PORT, 'localhost', () => {
+            console.log(`HTTP handler connected to local TCP server on port ${SHARP_PORT}`);
             const steps = [
                 { type: 'HELLO', server_id: from },
                 { type: 'MAIL_TO', address: to },
@@ -223,44 +219,92 @@ app.post('/', async (req, res) => {
 
             let currentStep = 0;
             let responses = [];
+            let responseSent = false;
 
             client.on('data', (data) => {
-                const response = JSON.parse(data.toString().trim());
-                responses.push(response);
+                const messages = data.toString().trim().split('\n');
+                for (const message of messages) {
+                    if (!message) continue;
 
-                if (response.type === 'ERROR') {
-                    client.end();
-                    res.status(400).json(response);
-                    return;
-                }
+                    try {
+                        const response = JSON.parse(message);
+                        console.log('HTTP handler received TCP response:', response);
+                        responses.push(response);
 
-                if (response.type === 'OK') {
-                    if (currentStep < steps.length) {
-                        client.write(JSON.stringify(steps[currentStep++]) + '\n');
-                    } else {
+                        if (response.type === 'ERROR') {
+                            if (!responseSent) {
+                                res.status(400).json(response);
+                                responseSent = true;
+                            }
+                            client.end();
+                            return;
+                        }
+
+                        if (response.type === 'OK' && response.message === 'Email processed') {
+                            if (!responseSent) {
+                                res.json({ success: true, responses });
+                                responseSent = true;
+                            }
+                            client.end();
+                            return;
+                        } else if (response.type === 'OK') {
+                            if (client.writable && currentStep < steps.length) {
+                                client.write(JSON.stringify(steps[currentStep++]) + '\n');
+                            }
+                        }
+                    } catch (parseError) {
+                        console.error('HTTP handler failed to parse TCP response:', message, parseError);
+                        if (!responseSent) {
+                            res.status(500).json({ success: false, message: 'Internal server error: Invalid TCP response' });
+                            responseSent = true;
+                        }
                         client.end();
-                        res.json({ success: true, responses });
+                        return;
                     }
                 }
             });
 
+            client.on('end', () => {
+                console.log('HTTP handler connection to local TCP server ended.');
+                if (!responseSent) {
+                    console.warn('TCP connection ended before final response was received/sent.');
+                    if (responses.length > 0 && responses[responses.length - 1].type === 'OK' && responses[responses.length - 1].message === 'Email processed') {
+                        res.json({ success: true, responses });
+                    } else {
+                        res.status(500).json({ success: false, message: 'Connection closed unexpectedly', responses });
+                    }
+                    responseSent = true;
+                }
+            });
+
             client.on('error', (err) => {
-                console.error('Client error:', err);
-                res.status(500).json({ success: false, message: err.message });
+                console.error('HTTP handler connection error:', err);
+                if (!responseSent) {
+                    res.status(500).json({ success: false, message: `TCP Connection Error: ${err.message}` });
+                    responseSent = true;
+                }
                 client.destroy();
             });
 
+            // Start the protocol flow
             client.write(JSON.stringify(steps[currentStep++]) + '\n');
         });
 
         client.on('error', (err) => {
-            console.error('Connection error:', err);
-            res.status(500).json({ success: false, message: err.message });
+            if (!res.headersSent && !responseSent) {
+                console.error('HTTP handler failed to connect to local TCP server:', err);
+                res.status(500).json({ success: false, message: `Failed to connect to local SHARP server: ${err.message}` });
+                responseSent = true;
+            } else if (!responseSent) {
+                console.error('HTTP handler connection error after headers sent, but response flag not set:', err);
+            }
         });
 
     } catch (error) {
-        console.error('Error processing request:', error);
-        res.status(500).json({ success: false, message: error.message });
+        console.error('Error processing HTTP request:', error);
+        if (!res.headersSent) {
+            res.status(400).json({ success: false, message: error.message });
+        }
     }
 });
 
