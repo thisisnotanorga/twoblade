@@ -138,19 +138,15 @@ async function processEmail(state) {
         console.log(`Processing email for: ${recipient.username} at ${recipient.host}:${recipient.port}`);
 
         // Check if the recipient address points to this server instance
-        // For simplicity, we assume 'localhost' refers to the current machine.
-        // A more robust check might involve comparing against os.hostname() or specific IP addresses.
         if ((recipient.host === 'localhost' || recipient.host === '127.0.0.1') && recipient.port === SHARP_PORT) {
             console.log(`Handling local delivery for ${recipient.username}`);
-            // TODO: Implement actual local storage or handling for the email
-            // For now, just log it to prevent the loop.
             console.log('Received local email:', {
                 from: state.from,
                 to: state.to,
                 subject: state.subject,
                 body: state.body
             });
-            return Promise.resolve(); // Indicate success without forwarding
+            return Promise.resolve();
         }
 
         // If not local, proceed with forwarding to the remote server
@@ -160,7 +156,7 @@ async function processEmail(state) {
 
             remoteClient.connect(recipient.port, recipient.host, () => {
                 console.log('Connected to remote SHARP server');
-                
+
                 const steps = [
                     { type: 'HELLO', server_id: state.from },
                     { type: 'MAIL_TO', address: state.to },
@@ -170,10 +166,12 @@ async function processEmail(state) {
                 ];
 
                 let currentStep = 0;
+                let responses = [];
 
                 remoteClient.on('data', (data) => {
                     const response = JSON.parse(data.toString().trim());
-                    
+                    responses.push(response);
+
                     if (response.type === 'ERROR') {
                         remoteClient.end();
                         reject(new Error(response.message));
@@ -184,14 +182,18 @@ async function processEmail(state) {
                         if (currentStep < steps.length) {
                             remoteClient.write(JSON.stringify(steps[currentStep++]) + '\n');
                         } else {
-                            remoteClient.end();
-                            resolve();
+                            // Resolve the promise *after* the remote client has ended
+                            remoteClient.end(() => {
+                                resolve();
+                            });
                         }
                     }
                 });
 
-                // Start the protocol flow
-                remoteClient.write(JSON.stringify(steps[currentStep++]) + '\n');
+                remoteClient.on('error', (err) => {
+                    remoteClient.end();
+                    reject(new Error(`Failed to connect to remote SHARP server: ${err.message}`));
+                });
             });
 
             remoteClient.on('error', (err) => {
@@ -204,43 +206,62 @@ async function processEmail(state) {
 }
 
 app.post('/', async (req, res) => {
-    const client = new net.Socket();
     const { from, to, subject, body } = req.body;
 
-    client.connect(SHARP_PORT, 'localhost', () => {
-        const steps = [
-            { type: 'HELLO', server_id: from },
-            { type: 'MAIL_TO', address: to },
-            { type: 'DATA' },
-            { type: 'EMAIL_CONTENT', subject, body },
-            { type: 'END_DATA' }
-        ];
+    try {
+        const recipient = parseSharpAddress(to);
+        const client = new net.Socket();
 
-        let currentStep = 0;
-        let responses = [];
+        client.connect(SHARP_PORT, recipient.host, async () => { // Connect to the recipient's host
+            const steps = [
+                { type: 'HELLO', server_id: from },
+                { type: 'MAIL_TO', address: to },
+                { type: 'DATA' },
+                { type: 'EMAIL_CONTENT', subject, body },
+                { type: 'END_DATA' }
+            ];
 
-        client.on('data', (data) => {
-            const response = JSON.parse(data.toString().trim());
-            responses.push(response);
+            let currentStep = 0;
+            let responses = [];
 
-            if (response.type === 'ERROR') {
-                client.end();
-                res.status(400).json(response);
-                return;
-            }
+            client.on('data', (data) => {
+                const response = JSON.parse(data.toString().trim());
+                responses.push(response);
 
-            if (response.type === 'OK') {
-                if (currentStep < steps.length) {
-                    client.write(JSON.stringify(steps[currentStep++]) + '\n');
-                } else {
+                if (response.type === 'ERROR') {
                     client.end();
-                    res.json({ success: true, responses });
+                    res.status(400).json(response);
+                    return;
                 }
-            }
+
+                if (response.type === 'OK') {
+                    if (currentStep < steps.length) {
+                        client.write(JSON.stringify(steps[currentStep++]) + '\n');
+                    } else {
+                        client.end();
+                        res.json({ success: true, responses });
+                    }
+                }
+            });
+
+            client.on('error', (err) => {
+                console.error('Client error:', err);
+                res.status(500).json({ success: false, message: err.message });
+                client.destroy();
+            });
+
+            client.write(JSON.stringify(steps[currentStep++]) + '\n');
         });
 
-        client.write(JSON.stringify(steps[currentStep++]) + '\n');
-    });
+        client.on('error', (err) => {
+            console.error('Connection error:', err);
+            res.status(500).json({ success: false, message: err.message });
+        });
+
+    } catch (error) {
+        console.error('Error processing request:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
 });
 
 tcpServer.listen(SHARP_PORT, () => {
