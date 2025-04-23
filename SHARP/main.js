@@ -2,6 +2,7 @@ import express from 'express';
 import net from 'net';
 import cors from 'cors';
 import postgres from 'postgres';
+import dns from 'dns/promises';
 
 const args = process.argv.slice(2);
 const SHARP_PORT = args[0] ? parseInt(args[0]) : 5000;
@@ -242,60 +243,99 @@ async function processEmail(state) {
     }
 }
 
-async function sendEmailToRemoteServer(email, remotePort) {
+async function resolveSRV(domain) {
+    try {
+        const srvRecords = await dns.resolveSrv(`_sharp._tcp.${domain}`);
+        if (!srvRecords || srvRecords.length === 0) {
+            throw new Error('No SHARP server records found');
+        }
+
+        const srv = srvRecords[0];
+
+        const addresses = await dns.resolve4(srv.name);
+        if (!addresses || addresses.length === 0) {
+            throw new Error('Could not resolve SHARP server address');
+        }
+
+        return {
+            host: addresses[0],
+            port: srv.port,
+            name: srv.name
+        };
+    } catch (error) {
+        throw new Error(`DNS lookup failed: ${error.message}`);
+    }
+}
+
+async function sendEmailToRemoteServer(email) {
     const recipient = parseSharpAddress(email.to);
     const remoteHost = recipient.domain;
 
-    const serverInfo = await validateRemoteServer(remoteHost);
-    if (!serverInfo.isValid) {
-        throw new Error(`Invalid SHARP server at ${remoteHost}: ${serverInfo.error}`);
-    }
+    console.log(`Looking up SHARP server for ${remoteHost}...`);
 
-    const client = new net.Socket();
+    try {
+        const serverInfo = await resolveSRV(remoteHost);
+        console.log(`Found SHARP server at ${serverInfo.host}:${serverInfo.port}`);
 
-    return new Promise((resolve, reject) => {
-        client.connect(remotePort, remoteHost, () => {
-            console.log(`Connected to remote SHARP server ${remoteHost}:${remotePort}`);
+        const validation = await validateRemoteServer(remoteHost);
+        if (!validation.isValid) {
+            throw new Error(`Invalid SHARP server at ${remoteHost}: ${validation.error}`);
+        }
 
-            const steps = [
-                { type: 'HELLO', server_id: email.from },
-                { type: 'MAIL_TO', address: email.to },
-                { type: 'DATA' },
-                { type: 'EMAIL_CONTENT', subject: email.subject, body: email.body },
-                { type: 'END_DATA' }
-            ];
+        const client = new net.Socket();
 
-            let currentStep = 0;
-            let responses = [];
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                client.destroy();
+                reject(new Error('Connection timed out'));
+            }, 5000);
 
-            client.on('data', (data) => {
-                const response = JSON.parse(data.toString().trim());
-                responses.push(response);
+            client.connect(serverInfo.port, serverInfo.host, () => {
+                clearTimeout(timeout);
+                console.log(`Connected to SHARP server ${serverInfo.name} (${serverInfo.host}:${serverInfo.port})`);
 
-                if (response.type === 'ERROR') {
-                    client.end();
-                    reject(response);
-                    return;
-                }
+                const steps = [
+                    { type: 'HELLO', server_id: email.from },
+                    { type: 'MAIL_TO', address: email.to },
+                    { type: 'DATA' },
+                    { type: 'EMAIL_CONTENT', subject: email.subject, body: email.body },
+                    { type: 'END_DATA' }
+                ];
 
-                if (response.type === 'OK' && response.message === 'Email processed') {
-                    client.end();
-                    resolve({ success: true, responses });
-                    return;
-                }
+                let currentStep = 0;
+                let responses = [];
 
-                if (response.type === 'OK' && currentStep < steps.length) {
-                    client.write(JSON.stringify(steps[currentStep++]) + '\n');
-                }
+                client.on('data', (data) => {
+                    const response = JSON.parse(data.toString().trim());
+                    responses.push(response);
+
+                    if (response.type === 'ERROR') {
+                        client.end();
+                        reject(response);
+                        return;
+                    }
+
+                    if (response.type === 'OK' && response.message === 'Email processed') {
+                        client.end();
+                        resolve({ success: true, responses });
+                        return;
+                    }
+
+                    if (response.type === 'OK' && currentStep < steps.length) {
+                        client.write(JSON.stringify(steps[currentStep++]) + '\n');
+                    }
+                });
+
+                client.on('error', (err) => {
+                    reject({ success: false, message: `Connection error: ${err.message}` });
+                });
+
+                client.write(JSON.stringify(steps[currentStep++]) + '\n');
             });
-
-            client.on('error', (err) => {
-                reject({ success: false, message: `Connection error: ${err.message}` });
-            });
-
-            client.write(JSON.stringify(steps[currentStep++]) + '\n');
         });
-    });
+    } catch (error) {
+        throw new Error(`Failed to resolve or connect to remote server: ${error.message}`);
+    }
 }
 
 app.post('/api/send', async (req, res) => {
@@ -316,12 +356,12 @@ app.post('/api/send', async (req, res) => {
     try {
         // Set a timeout for the remote server connection
         const result = await Promise.race([
-            sendEmailToRemoteServer({ from, to, subject, body }, SHARP_PORT),
-            new Promise((_, reject) => 
+            sendEmailToRemoteServer({ from, to, subject, body }),
+            new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('Connection timed out')), 10000)
             )
         ]);
-        
+
         console.log('Email sent successfully:', result);
         res.json(result);
     } catch (error) {
