@@ -1,5 +1,5 @@
 CREATE TABLE domains (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     domain_name VARCHAR(255) NOT NULL UNIQUE,
     server_ip VARCHAR(45) NOT NULL,
     server_port INTEGER NOT NULL DEFAULT 5000,
@@ -10,7 +10,7 @@ CREATE TABLE domains (
 );
 
 CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     username VARCHAR(255) NOT NULL,
     host VARCHAR(255) NOT NULL,
     port INTEGER DEFAULT 5000,
@@ -19,7 +19,7 @@ CREATE TABLE users (
 );
 
 CREATE TABLE emails (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     from_address VARCHAR(255) NOT NULL,     -- format: user@domain
     from_domain VARCHAR(255) NOT NULL,      -- extracted domain
     to_address VARCHAR(255) NOT NULL,       -- format: user@domain
@@ -36,6 +36,8 @@ CREATE TABLE emails (
 CREATE INDEX idx_emails_from ON emails(from_address);
 CREATE INDEX idx_emails_to ON emails(to_address);
 CREATE INDEX idx_emails_status ON emails(status);
+CREATE INDEX idx_domains_name ON domains(domain_name);
+CREATE INDEX idx_domains_active ON domains(is_active);
 
 CREATE VIEW email_routing AS
 SELECT 
