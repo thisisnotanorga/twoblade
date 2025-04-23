@@ -299,12 +299,14 @@ async function sendEmailToRemoteServer(email, remotePort) {
 }
 
 app.post('/api/send', async (req, res) => {
+    console.log('Received email request:', req.body);
     const { from, to, subject, body } = req.body;
 
     try {
         parseSharpAddress(from);
         parseSharpAddress(to);
     } catch (e) {
+        console.error('Address parsing error:', e);
         return res.status(400).json({
             success: false,
             message: e.message || 'Invalid address format in request body'
@@ -312,15 +314,25 @@ app.post('/api/send', async (req, res) => {
     }
 
     try {
-        const result = await sendEmailToRemoteServer({ from, to, subject, body }, SHARP_PORT);
+        // Set a timeout for the remote server connection
+        const result = await Promise.race([
+            sendEmailToRemoteServer({ from, to, subject, body }, SHARP_PORT),
+            new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Connection timed out')), 10000)
+            )
+        ]);
+        
+        console.log('Email sent successfully:', result);
         res.json(result);
     } catch (error) {
+        console.error('Email sending error:', error);
         res.status(400).json({
             success: false,
             message: error.message || 'Failed to send email'
         });
     }
 });
+
 
 app.get('/api/server/health', (req, res) => {
     res.json({
