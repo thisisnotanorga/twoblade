@@ -39,6 +39,41 @@ async function logEmail(fromAddress, fromDomain, toAddress, toDomain, subject, b
 }
 
 // DATABASE END
+
+async function validateRemoteServer(domain) {
+    try {
+        // Try HTTPS first, fall back to HTTP
+        const protocols = ['https://', 'http://'];
+
+        for (const protocol of protocols) {
+            try {
+                const response = await fetch(`${protocol}${domain}/api/server/health`);
+                if (!response.ok) continue;
+
+                const data = await response.json();
+                if (data.protocol !== 'SHARP/1.0') {
+                    throw new Error('Not a valid SHARP server');
+                }
+
+                return {
+                    domain: data.domain,
+                    protocol,
+                    isValid: true
+                };
+            } catch (e) {
+                continue;
+            }
+        }
+        throw new Error('Server not reachable');
+    } catch (error) {
+        return {
+            isValid: false,
+            error: error.message
+        };
+    }
+}
+//
+
 function parseSharpAddress(address) {
     const match = address.match(/^(.+)#(.+)$/);
     if (!match) throw new Error('Invalid SHARP address format');
@@ -214,6 +249,12 @@ async function processEmail(state) {
 
 async function sendEmailToRemoteServer(email) {
     const recipient = parseSharpAddress(email.to);
+
+    const serverInfo = await validateRemoteServer(recipient.domain);
+    if (!serverInfo.isValid) {
+        throw new Error(`Invalid SHARP server at ${recipient.domain}: ${serverInfo.error}`);
+    }
+
     const client = new net.Socket();
 
     return new Promise((resolve, reject) => {
@@ -273,6 +314,14 @@ app.post('/', async (req, res) => {
             message: error.message || 'Failed to send email'
         });
     }
+});
+
+app.get('/api/server/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        protocol: 'SHARP/1.0',
+        domain: process.env.DOMAIN_NAME || 'localhost'
+    });
 });
 
 tcpServer.listen(SHARP_PORT, () => {
