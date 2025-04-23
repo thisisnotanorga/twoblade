@@ -124,98 +124,131 @@ const tcpServer = net.createServer((socket) => {
 });
 
 async function handleSharpMessage(socket, message, state) {
+    const clientAddress = socket.remoteAddress + ':' + socket.remotePort;
     try {
+        console.log(`[${clientAddress}] Raw message: ${message}`);
         const cmd = JSON.parse(message);
-        console.log('Received:', cmd);
+        console.log(`[${clientAddress}] Received command:`, cmd);
 
         switch (state.currentStep) {
             case 'HELLO':
+                console.log(`[${clientAddress}] Handling HELLO state`);
                 if (cmd.type === 'HELLO') {
                     state.from = cmd.server_id;
-                    const fromParts = parseSharpAddress(state.from);
-                    const fromUser = await verifyUser(fromParts.username, fromParts.domain);
+                    console.log(`[${clientAddress}] From address set: ${state.from}`);
 
-                    if (!fromUser) {
-                        sendError(socket, 'Sender not registered');
+                    let fromParts;
+                    try {
+                        fromParts = parseSharpAddress(state.from);
+                        console.log(`[${clientAddress}] Parsed from address:`, fromParts);
+                    } catch (parseError) {
+                        console.error(`[${clientAddress}] Error parsing 'from' address: ${state.from}`, parseError);
+                        sendError(socket, `Invalid 'from' address format: ${state.from}`);
+                        return; // Stop processing
+                    }
+
+                    let fromUser;
+                    try {
+                        console.log(`[${clientAddress}] Verifying user: ${fromParts.username} on domain ${fromParts.domain}`);
+
+                        console.log(`[${clientAddress}] Proceeding to MAIL_TO state.`);
+                        state.currentStep = 'MAIL_TO';
+                        console.log(`[${clientAddress}] Sending OK response.`);
+                        sendResponse(socket, { type: 'OK' });
+                        console.log(`[${clientAddress}] OK response sent.`);
+
+                    } catch (dbError) {
+                        console.error(`[${clientAddress}] Database or other error during user verification:`, dbError);
+                        sendError(socket, 'Internal server error during user verification');
                         return;
                     }
 
-                    state.currentStep = 'MAIL_TO';
-                    sendResponse(socket, { type: 'OK' });
                 } else {
+                    console.warn(`[${clientAddress}] Expected HELLO, got ${cmd.type}`);
                     sendError(socket, 'Expected HELLO');
                 }
                 break;
 
             case 'MAIL_TO':
-                if (cmd.type === 'MAIL_TO') {
-                    state.to = cmd.address;
-                    const toParts = parseSharpAddress(state.to);
-                    const toDomain = await getDomainInfo(toParts.domain);
-                    const toUser = await verifyUser(toParts.username, toParts.domain);
+                 console.log(`[${clientAddress}] Handling MAIL_TO state`);
+                 if (cmd.type === 'MAIL_TO') {
+                     state.to = cmd.address;
+                     console.log(`[${clientAddress}] To address set: ${state.to}`);
+                     let toParts;
+                     try {
+                         toParts = parseSharpAddress(state.to);
+                         console.log(`[${clientAddress}] Parsed to address:`, toParts);
+                     } catch (parseError) {
+                         console.error(`[${clientAddress}] Error parsing 'to' address: ${state.to}`, parseError);
+                         sendError(socket, `Invalid 'to' address format: ${state.to}`);
+                         return;
+                     }
 
-                    if (!toDomain) {
-                        sendError(socket, 'Recipient domain not registered');
-                        return;
-                    }
-                    if (!toUser) {
-                        sendError(socket, 'Recipient not registered');
-                        return;
-                    }
+                     try {
+                         if (toParts.domain === process.env.DOMAIN_NAME) {
+                             console.log(`[${clientAddress}] Verifying local recipient: ${toParts.username}`);
+                             const toUser = await verifyUser(toParts.username, toParts.domain); // Use the local verifyUser
+                             if (!toUser) {
+                                 console.log(`[${clientAddress}] Local recipient ${state.to} not found.`);
+                                 sendError(socket, 'Recipient user not found');
+                                 return;
+                             }
+                             console.log(`[${clientAddress}] Local recipient ${state.to} verified.`);
+                         } else {
+                             console.warn(`[${clientAddress}] Received MAIL_TO for non-local domain ${toParts.domain}. This server should not handle it directly via TCP.`);
 
-                    state.currentStep = 'DATA';
-                    sendResponse(socket, { type: 'OK' });
-                } else {
-                    sendError(socket, 'Expected MAIL_TO');
-                }
-                break;
+                             sendError(socket, `This server does not handle mail for ${toParts.domain}`);
+                             return;
+                         }
 
-            case 'DATA':
-                if (cmd.type === 'DATA') {
-                    state.currentStep = 'EMAIL_CONTENT';
-                    sendResponse(socket, { type: 'OK' });
-                } else {
-                    sendError(socket, 'Expected DATA');
-                }
-                break;
+                         state.currentStep = 'DATA';
+                         console.log(`[${clientAddress}] Sending OK response for MAIL_TO.`);
+                         sendResponse(socket, { type: 'OK' });
+                         console.log(`[${clientAddress}] OK response sent.`);
 
-            case 'EMAIL_CONTENT':
-                if (cmd.type === 'EMAIL_CONTENT') {
-                    state.subject = cmd.subject;
-                    state.body = cmd.body;
-                    state.currentStep = 'END_DATA';
-                    sendResponse(socket, { type: 'OK' });
-                } else {
-                    sendError(socket, 'Expected EMAIL_CONTENT');
-                }
-                break;
+                     } catch (dbError) {
+                         console.error(`[${clientAddress}] Database or other error during recipient verification:`, dbError);
+                         sendError(socket, 'Internal server error during recipient verification');
+                         return;
+                     }
 
-            case 'END_DATA':
-                if (cmd.type === 'END_DATA') {
-                    try {
-                        await processEmail(state);
-                        state.currentStep = 'HELLO';
-                        sendResponse(socket, { type: 'OK', message: 'Email processed' });
-                    } catch (error) {
-                        sendError(socket, error.message);
-                    }
-                } else {
-                    sendError(socket, 'Expected END_DATA');
-                }
-                break;
+                 } else {
+                     console.warn(`[${clientAddress}] Expected MAIL_TO, got ${cmd.type}`);
+                     sendError(socket, 'Expected MAIL_TO');
+                 }
+                 break;
         }
     } catch (e) {
-        sendError(socket, 'Invalid message format');
+        // Catch JSON parsing errors or other synchronous errors
+        console.error(`[${clientAddress}] Error processing message: ${message}`, e);
+        // Check if socket is still writable before sending error
+        if (socket.writable) {
+            sendError(socket, 'Invalid message format or processing error');
+        } else {
+            console.error(`[${clientAddress}] Socket not writable, cannot send error response.`);
+        }
     }
 }
 
 function sendResponse(socket, response) {
-    socket.write(JSON.stringify(response) + '\n');
+    const clientAddress = socket.remoteAddress + ':' + socket.remotePort;
+   if (socket.writable) {
+       socket.write(JSON.stringify(response) + '\n');
+   } else {
+        console.warn(`[${clientAddress}] Socket not writable when trying to send response:`, response);
+   }
 }
 
 function sendError(socket, message) {
-    socket.write(JSON.stringify({ type: 'ERROR', message }) + '\n');
-    socket.end();
+    const clientAddress = socket.remoteAddress + ':' + socket.remotePort;
+    if (socket.writable) {
+        console.log(`[${clientAddress}] Sending ERROR: ${message}`);
+        socket.write(JSON.stringify({ type: 'ERROR', message }) + '\n');
+        console.log(`[${clientAddress}] Ending socket after error.`);
+        socket.end(); // End the connection after sending the error
+    } else {
+        console.warn(`[${clientAddress}] Socket not writable when trying to send ERROR: ${message}`);
+    }
 }
 
 async function processEmail(state) {
