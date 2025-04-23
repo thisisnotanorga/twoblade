@@ -247,19 +247,20 @@ async function processEmail(state) {
     }
 }
 
-async function sendEmailToRemoteServer(email) {
+async function sendEmailToRemoteServer(email, remotePort) {
     const recipient = parseSharpAddress(email.to);
+    const remoteHost = recipient.domain;
 
-    const serverInfo = await validateRemoteServer(recipient.domain);
+    const serverInfo = await validateRemoteServer(remoteHost);
     if (!serverInfo.isValid) {
-        throw new Error(`Invalid SHARP server at ${recipient.domain}: ${serverInfo.error}`);
+        throw new Error(`Invalid SHARP server at ${remoteHost}: ${serverInfo.error}`);
     }
 
     const client = new net.Socket();
 
     return new Promise((resolve, reject) => {
-        client.connect(recipient.port, recipient.host, () => {
-            console.log(`Connected to remote SHARP server ${recipient.host}:${recipient.port}`);
+        client.connect(remotePort, remoteHost, () => {
+            console.log(`Connected to remote SHARP server ${remoteHost}:${remotePort}`);
 
             const steps = [
                 { type: 'HELLO', server_id: email.from },
@@ -302,11 +303,21 @@ async function sendEmailToRemoteServer(email) {
     });
 }
 
-app.post('/', async (req, res) => {
+app.post('/api/send', async (req, res) => {
     const { from, to, subject, body } = req.body;
 
     try {
-        const result = await sendEmailToRemoteServer({ from, to, subject, body });
+        parseSharpAddress(from);
+        parseSharpAddress(to);
+    } catch (e) {
+        return res.status(400).json({
+            success: false,
+            message: e.message || 'Invalid address format in request body'
+        });
+    }
+
+    try {
+        const result = await sendEmailToRemoteServer({ from, to, subject, body }, SHARP_PORT);
         res.json(result);
     } catch (error) {
         res.status(400).json({
