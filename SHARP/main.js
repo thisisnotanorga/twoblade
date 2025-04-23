@@ -1,7 +1,7 @@
-const express = require('express');
-const net = require('net');
-const cors = require('cors');
-const postgres = require('postgres');
+import express from 'express';
+import net from 'net';
+import cors from 'cors';
+import postgres from 'postgres';
 
 const args = process.argv.slice(2);
 const SHARP_PORT = args[0] ? parseInt(args[0]) : 5000;
