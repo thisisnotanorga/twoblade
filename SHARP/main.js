@@ -1,18 +1,50 @@
 const express = require('express');
 const net = require('net');
 const cors = require('cors');
+const postgres = require('postgres');
 
 const args = process.argv.slice(2);
 const SHARP_PORT = args[0] ? parseInt(args[0]) : 5000;
 const HTTP_PORT = SHARP_PORT + 1;
 
+const sql = postgres(process.env.DATABASE_URL);
+
+// DATABASE
+async function getDomainInfo(domainName) {
+    const domains = await sql`
+        SELECT * FROM domains 
+        WHERE domain_name = ${domainName} 
+        AND is_active = true
+    `;
+    return domains[0];
+}
+async function verifyUser(username, domain) {
+    const users = await sql`
+        SELECT * FROM users 
+        WHERE username = ${username} 
+        AND host = ${domain}
+    `;
+    return users[0];
+}
+async function logEmail(fromAddress, fromDomain, toAddress, toDomain, subject, body, status = 'pending') {
+    return await sql`
+        INSERT INTO emails (
+            from_address, from_domain, to_address, to_domain, 
+            subject, body, status
+        ) VALUES (
+            ${fromAddress}, ${fromDomain}, ${toAddress}, ${toDomain}, 
+            ${subject}, ${body}, ${status}
+        ) RETURNING id
+    `;
+}
+
+// DATABASE END
 function parseSharpAddress(address) {
-    const match = address.match(/^(.+)#(.+?)(?::(\d+))?$/);
+    const match = address.match(/^(.+)#(.+)$/);
     if (!match) throw new Error('Invalid SHARP address format');
     return {
         username: match[1],
-        host: match[2],
-        port: match[3] ? parseInt(match[3]) : 5000
+        domain: match[2]
     };
 }
 
@@ -64,6 +96,19 @@ async function handleSharpMessage(socket, message, state) {
             case 'HELLO':
                 if (cmd.type === 'HELLO') {
                     state.from = cmd.server_id;
+                    const fromParts = parseSharpAddress(state.from);
+                    const fromDomain = await getDomainInfo(fromParts.domain);
+                    const fromUser = await verifyUser(fromParts.username, fromParts.domain);
+
+                    if (!fromDomain) {
+                        sendError(socket, 'Sender domain not registered');
+                        return;
+                    }
+                    if (!fromUser) {
+                        sendError(socket, 'Sender not registered');
+                        return;
+                    }
+
                     state.currentStep = 'MAIL_TO';
                     sendResponse(socket, { type: 'OK' });
                 } else {
@@ -74,6 +119,19 @@ async function handleSharpMessage(socket, message, state) {
             case 'MAIL_TO':
                 if (cmd.type === 'MAIL_TO') {
                     state.to = cmd.address;
+                    const toParts = parseSharpAddress(state.to);
+                    const toDomain = await getDomainInfo(toParts.domain);
+                    const toUser = await verifyUser(toParts.username, toParts.domain);
+
+                    if (!toDomain) {
+                        sendError(socket, 'Recipient domain not registered');
+                        return;
+                    }
+                    if (!toUser) {
+                        sendError(socket, 'Recipient not registered');
+                        return;
+                    }
+
                     state.currentStep = 'DATA';
                     sendResponse(socket, { type: 'OK' });
                 } else {
@@ -131,14 +189,24 @@ function sendError(socket, message) {
 
 async function processEmail(state) {
     try {
-        const recipient = parseSharpAddress(state.to);
-        console.log(`Processing email for: ${recipient.username} at ${recipient.host}:${recipient.port}`);
+        const fromParts = parseSharpAddress(state.from);
+        const toParts = parseSharpAddress(state.to);
 
-        // store data n shi
+        // Log the email
+        await logEmail(
+            state.from,
+            fromParts.domain,
+            state.to,
+            toParts.domain,
+            state.subject,
+            state.body
+        );
+
+        console.log(`Email processed successfully`);
         console.log(`From: ${state.from}`);
         console.log(`To: ${state.to}`);
         console.log(`Subject: ${state.subject}`);
-        console.log(`Body: ${state.body}`);
+
     } catch (error) {
         throw new Error(`Failed to process email: ${error.message}`);
     }
