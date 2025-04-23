@@ -132,13 +132,8 @@ async function handleSharpMessage(socket, message, state) {
                 if (cmd.type === 'HELLO') {
                     state.from = cmd.server_id;
                     const fromParts = parseSharpAddress(state.from);
-                    const fromDomain = await getDomainInfo(fromParts.domain);
                     const fromUser = await verifyUser(fromParts.username, fromParts.domain);
 
-                    if (!fromDomain) {
-                        sendError(socket, 'Sender domain not registered');
-                        return;
-                    }
                     if (!fromUser) {
                         sendError(socket, 'Sender not registered');
                         return;
