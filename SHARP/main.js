@@ -76,11 +76,12 @@ async function validateRemoteServer(domain) {
 //
 
 function parseSharpAddress(address) {
-    const match = address.match(/^(.+)#(.+)$/);
-    if (!match) throw new Error('Invalid SHARP address format');
+    const match = address.match(/^(.+)#([^:]+)(?::(\d+))?$/);
+    if (!match) throw new Error('Invalid SHARP address format. Expected user#host or user#host:port');
     return {
         username: match[1],
-        domain: match[2]
+        domain: match[2],
+        port: match[3] ? parseInt(match[3]) : null
     };
 }
 
@@ -170,53 +171,53 @@ async function handleSharpMessage(socket, message, state) {
                 break;
 
             case 'MAIL_TO':
-                 console.log(`[${clientAddress}] Handling MAIL_TO state`);
-                 if (cmd.type === 'MAIL_TO') {
-                     state.to = cmd.address;
-                     console.log(`[${clientAddress}] To address set: ${state.to}`);
-                     let toParts;
-                     try {
-                         toParts = parseSharpAddress(state.to);
-                         console.log(`[${clientAddress}] Parsed to address:`, toParts);
-                     } catch (parseError) {
-                         console.error(`[${clientAddress}] Error parsing 'to' address: ${state.to}`, parseError);
-                         sendError(socket, `Invalid 'to' address format: ${state.to}`);
-                         return;
-                     }
+                console.log(`[${clientAddress}] Handling MAIL_TO state`);
+                if (cmd.type === 'MAIL_TO') {
+                    state.to = cmd.address;
+                    console.log(`[${clientAddress}] To address set: ${state.to}`);
+                    let toParts;
+                    try {
+                        toParts = parseSharpAddress(state.to);
+                        console.log(`[${clientAddress}] Parsed to address:`, toParts);
+                    } catch (parseError) {
+                        console.error(`[${clientAddress}] Error parsing 'to' address: ${state.to}`, parseError);
+                        sendError(socket, `Invalid 'to' address format: ${state.to}`);
+                        return;
+                    }
 
-                     try {
-                         if (toParts.domain === process.env.DOMAIN_NAME) {
-                             console.log(`[${clientAddress}] Verifying local recipient: ${toParts.username}`);
-                             const toUser = await verifyUser(toParts.username, toParts.domain); // Use the local verifyUser
-                             if (!toUser) {
-                                 console.log(`[${clientAddress}] Local recipient ${state.to} not found.`);
-                                 sendError(socket, 'Recipient user not found');
-                                 return;
-                             }
-                             console.log(`[${clientAddress}] Local recipient ${state.to} verified.`);
-                         } else {
-                             console.warn(`[${clientAddress}] Received MAIL_TO for non-local domain ${toParts.domain}. This server should not handle it directly via TCP.`);
+                    try {
+                        if (toParts.domain === process.env.DOMAIN_NAME) {
+                            console.log(`[${clientAddress}] Verifying local recipient: ${toParts.username}`);
+                            const toUser = await verifyUser(toParts.username, toParts.domain); // Use the local verifyUser
+                            if (!toUser) {
+                                console.log(`[${clientAddress}] Local recipient ${state.to} not found.`);
+                                sendError(socket, 'Recipient user not found');
+                                return;
+                            }
+                            console.log(`[${clientAddress}] Local recipient ${state.to} verified.`);
+                        } else {
+                            console.warn(`[${clientAddress}] Received MAIL_TO for non-local domain ${toParts.domain}. This server should not handle it directly via TCP.`);
 
-                             sendError(socket, `This server does not handle mail for ${toParts.domain}`);
-                             return;
-                         }
+                            sendError(socket, `This server does not handle mail for ${toParts.domain}`);
+                            return;
+                        }
 
-                         state.currentStep = 'DATA';
-                         console.log(`[${clientAddress}] Sending OK response for MAIL_TO.`);
-                         sendResponse(socket, { type: 'OK' });
-                         console.log(`[${clientAddress}] OK response sent.`);
+                        state.currentStep = 'DATA';
+                        console.log(`[${clientAddress}] Sending OK response for MAIL_TO.`);
+                        sendResponse(socket, { type: 'OK' });
+                        console.log(`[${clientAddress}] OK response sent.`);
 
-                     } catch (dbError) {
-                         console.error(`[${clientAddress}] Database or other error during recipient verification:`, dbError);
-                         sendError(socket, 'Internal server error during recipient verification');
-                         return;
-                     }
+                    } catch (dbError) {
+                        console.error(`[${clientAddress}] Database or other error during recipient verification:`, dbError);
+                        sendError(socket, 'Internal server error during recipient verification');
+                        return;
+                    }
 
-                 } else {
-                     console.warn(`[${clientAddress}] Expected MAIL_TO, got ${cmd.type}`);
-                     sendError(socket, 'Expected MAIL_TO');
-                 }
-                 break;
+                } else {
+                    console.warn(`[${clientAddress}] Expected MAIL_TO, got ${cmd.type}`);
+                    sendError(socket, 'Expected MAIL_TO');
+                }
+                break;
         }
     } catch (e) {
         // Catch JSON parsing errors or other synchronous errors
@@ -232,11 +233,11 @@ async function handleSharpMessage(socket, message, state) {
 
 function sendResponse(socket, response) {
     const clientAddress = socket.remoteAddress + ':' + socket.remotePort;
-   if (socket.writable) {
-       socket.write(JSON.stringify(response) + '\n');
-   } else {
+    if (socket.writable) {
+        socket.write(JSON.stringify(response) + '\n');
+    } else {
         console.warn(`[${clientAddress}] Socket not writable when trying to send response:`, response);
-   }
+    }
 }
 
 function sendError(socket, message) {
@@ -301,19 +302,42 @@ async function resolveSRV(domain) {
 }
 
 async function sendEmailToRemoteServer(email) {
-    const recipient = parseSharpAddress(email.to);
+    let recipient;
+    try {
+        recipient = parseSharpAddress(email.to);
+    } catch (e) {
+        throw new Error(`Invalid recipient address format: ${email.to}`);
+    }
     const remoteHost = recipient.domain;
+    const explicitPort = recipient.port;
 
-    console.log(`Looking up SHARP server for ${remoteHost}...`);
+    console.log(`Attempting to send email to ${email.to}`);
 
     try {
-        const serverInfo = await resolveSRV(remoteHost);
-        console.log(`Found SHARP server at ${serverInfo.host}:${serverInfo.port}`);
+        let serverInfo;
 
-        const validation = await validateRemoteServer(remoteHost);
-        if (!validation.isValid) {
-            throw new Error(`Invalid SHARP server at ${remoteHost}: ${validation.error}`);
+        if (explicitPort) {
+            console.log(`Using explicit address: ${remoteHost}:${explicitPort}`);
+            if (!net.isIP(remoteHost) && remoteHost.toLowerCase() !== 'localhost') {
+                console.warn(`Warning: Using non-IP hostname "${remoteHost}" with explicit port. Ensure it resolves correctly.`);
+            }
+            serverInfo = {
+                host: remoteHost,
+                port: explicitPort,
+                name: `${remoteHost}:${explicitPort}`
+            };
+        } else {
+            console.log(`Looking up SHARP server for domain ${remoteHost}...`);
+            serverInfo = await resolveSRV(remoteHost);
+            console.log(`Found SHARP server via SRV at ${serverInfo.name} (${serverInfo.host}:${serverInfo.port})`);
+
+            const validation = await validateRemoteServer(remoteHost); // Validate the original domain
+            if (!validation.isValid) {
+                throw new Error(`Invalid SHARP server configuration for domain ${remoteHost}: ${validation.error}`);
+            }
         }
+
+        console.log(`Connecting to target SHARP server at ${serverInfo.host}:${serverInfo.port}`);
 
         const client = new net.Socket();
 
