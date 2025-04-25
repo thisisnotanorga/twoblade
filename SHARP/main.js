@@ -220,6 +220,54 @@ async function handleSharpMessage(socket, message, state) {
                     sendError(socket, 'Expected MAIL_TO');
                 }
                 break;
+
+            case 'DATA':
+                console.log(`[${clientAddress}] Handling DATA state`);
+                if (cmd.type === 'DATA') {
+                    // Acknowledge the DATA command
+                    state.currentStep = 'RECEIVING_DATA'; // Set state to expect email content
+                    console.log(`[${clientAddress}] Received DATA command. Sending OK.`);
+                    sendResponse(socket, { type: 'OK' });
+                    console.log(`[${clientAddress}] OK response sent for DATA.`);
+                } else {
+                    console.warn(`[${clientAddress}] Expected DATA, got ${cmd.type}`);
+                    sendError(socket, 'Expected DATA');
+                }
+                break;
+
+            case 'RECEIVING_DATA':
+                console.log(`[${clientAddress}] Handling RECEIVING_DATA state`);
+                if (cmd.type === 'EMAIL_CONTENT') {
+                    state.subject = cmd.subject;
+                    state.body = cmd.body;
+                    console.log(`[${clientAddress}] Received EMAIL_CONTENT. Subject: ${state.subject}`);
+                    // Don't send OK yet, wait for END_DATA
+                } else if (cmd.type === 'END_DATA') {
+                    console.log(`[${clientAddress}] Received END_DATA. Processing email.`);
+                    try {
+                        // Process the complete email
+                        await processEmail(state); // Use your existing function
+                        console.log(`[${clientAddress}] Email processed successfully. Sending final OK.`);
+                        // Send final confirmation
+                        sendResponse(socket, { type: 'OK', message: 'Email processed' });
+                        console.log(`[${clientAddress}] Final OK sent. Ending connection.`);
+                        socket.end(); // Close the connection after successful processing
+                    } catch (processingError) {
+                        console.error(`[${clientAddress}] Error processing email:`, processingError);
+                        sendError(socket, `Failed to process email: ${processingError.message}`);
+                    }
+                    // Reset state or handle connection end
+                    state.currentStep = 'CLOSED'; // Or similar terminal state
+                } else {
+                    console.warn(`[${clientAddress}] Expected EMAIL_CONTENT or END_DATA, got ${cmd.type}`);
+                    sendError(socket, 'Expected EMAIL_CONTENT or END_DATA');
+                }
+                break;
+
+            default:
+                console.warn(`[${clientAddress}] Unhandled state: ${state.currentStep}`);
+                sendError(socket, `Unhandled server state: ${state.currentStep}`);
+                break;
         }
     } catch (e) {
         // Catch JSON parsing errors or other synchronous errors
