@@ -106,70 +106,145 @@ async function validateRemoteServer(domain) {
 }
 
 async function sendEmailToRemoteServer(email) {
-    const rec = parseSharpAddress(email.to)
-    let server
-    if (rec.port) {
-        server = { host: rec.domain, port: rec.port }
-    } else {
-        const srv = await resolveSRV(rec.domain)
-        const v = await validateRemoteServer(rec.domain)
-        if (!v.isValid)
-            throw new Error(
-                `Invalid SHARP server config for domain ${rec.domain}: ${v.error}`
+    const recipient = parseSharpAddress(email.to)
+    const remoteHost = recipient.domain
+    const explicitPort = recipient.port
+
+    console.log(`[Client Send] Attempting to send email to ${email.to}`)
+
+    try {
+        let serverInfo
+        if (explicitPort) {
+            console.log(
+                `[Client Send] Using explicit address: ${remoteHost}:${explicitPort}`
             )
-        server = { host: srv.host, port: srv.port }
-    }
-    const client = new net.Socket()
-    return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-            client.destroy()
-            reject(new Error('Connection timed out'))
-        }, 5000)
-        client.connect(server.port, server.host, () => {
-            clearTimeout(timeout)
-            const steps = [
-                { type: 'HELLO', server_id: email.from },
-                { type: 'MAIL_TO', address: email.to },
-                { type: 'DATA' },
-                { type: 'EMAIL_CONTENT', subject: email.subject, body: email.body },
-                { type: 'END_DATA' }
-            ]
-            let idx = 0
-            let buf = ''
-            client.on('data', d => {
-                buf += d
-                while (buf.includes('\n')) {
-                    const [line, ...rest] = buf.split('\n')
-                    buf = rest.join('\n')
-                    if (!line.trim()) continue
-                    const res = JSON.parse(line)
-                    if (res.type === 'ERROR') {
-                        client.end()
-                        return reject(new Error(res.message))
-                    }
-                    if (res.type === 'OK') {
-                        if (res.message === 'Email processed') {
+            serverInfo = {
+                host: remoteHost,
+                port: explicitPort,
+                name: `${remoteHost}:${explicitPort}`
+            }
+
+            try {
+                const lookupResult = await dns.lookup(serverInfo.host)
+                console.log(
+                    `[Client Send] DNS lookup for ${serverInfo.host} successful: Address: ${lookupResult.address}, Family: ${lookupResult.family}`
+                )
+            } catch (dnsError) {
+                console.error(
+                    `[Client Send] DNS lookup FAILED for ${serverInfo.host}:`,
+                    dnsError
+                )
+                throw new Error(
+                    `DNS lookup failed for ${serverInfo.host}: ${dnsError.message}`
+                )
+            }
+        } else {
+            console.log(
+                `[Client Send] Looking up SHARP server for domain ${remoteHost}...`
+            )
+            const srv = await resolveSRV(remoteHost)
+            const v = await validateRemoteServer(remoteHost)
+            if (!v.isValid)
+                throw new Error(
+                    `Invalid SHARP server config for domain ${remoteHost}: ${v.error}`
+                )
+            serverInfo = { host: srv.host, port: srv.port, name: remoteHost }
+        }
+
+        console.log(
+            `[Client Send] Preparing to connect to target SHARP server at ${serverInfo.host}:${serverInfo.port}`
+        )
+        const client = new net.Socket()
+
+        return new Promise((resolve, reject) => {
+            const timeoutDuration = 15000
+            console.log(`[Client Send] Setting connection timeout: ${timeoutDuration}ms`)
+            const timeout = setTimeout(() => {
+                console.error(
+                    `[Client Send] Connection attempt timed out after ${timeoutDuration}ms`
+                )
+                client.destroy()
+                reject(
+                    new Error(
+                        `Connection timed out connecting to ${serverInfo.host}:${serverInfo.port}`
+                    )
+                )
+            }, timeoutDuration)
+
+            console.log(
+                `[Client Send] Initiating connection to ${serverInfo.host}:${serverInfo.port}...`
+            )
+
+            client.connect(serverInfo.port, serverInfo.host, () => {
+                clearTimeout(timeout)
+                console.log(
+                    `[Client Send] Successfully connected to SHARP server ${serverInfo.name} (${serverInfo.host}:${serverInfo.port})`
+                )
+                const steps = [
+                    { type: 'HELLO', server_id: email.from },
+                    { type: 'MAIL_TO', address: email.to },
+                    { type: 'DATA' },
+                    { type: 'EMAIL_CONTENT', subject: email.subject, body: email.body },
+                    { type: 'END_DATA' }
+                ]
+                let idx = 0
+                let buf = ''
+                client.on('data', d => {
+                    buf += d
+                    while (buf.includes('\n')) {
+                        const [line, ...rest] = buf.split('\n')
+                        buf = rest.join('\n')
+                        if (!line.trim()) continue
+                        const res = JSON.parse(line)
+                        if (res.type === 'ERROR') {
                             client.end()
-                            return resolve({ success: true })
+                            return reject(new Error(res.message))
                         }
-                        if (idx < steps.length) {
-                            client.write(JSON.stringify(steps[idx++]) + '\n')
+                        if (res.type === 'OK') {
+                            if (res.message === 'Email processed') {
+                                client.end()
+                                return resolve({ success: true })
+                            }
+                            if (idx < steps.length) {
+                                client.write(JSON.stringify(steps[idx++]) + '\n')
+                            }
                         }
                     }
+                })
+                client.on('error', e => reject(e))
+                client.write(JSON.stringify(steps[idx++]) + '\n')
+            })
+
+            client.on('error', err => {
+                clearTimeout(timeout)
+                console.error(
+                    `[Client Send] Connection error for ${serverInfo.host}:${serverInfo.port}: ${err.message}`,
+                    err
+                )
+                if (err.code === 'ECONNREFUSED') {
+                    reject(
+                        new Error(
+                            `Connection refused by ${serverInfo.host}:${serverInfo.port}`
+                        )
+                    )
+                } else if (err.code === 'ENOTFOUND' || err.code === 'EAI_AGAIN') {
+                    reject(
+                        new Error(
+                            `DNS resolution failed for ${serverInfo.host}: ${err.message}`
+                        )
+                    )
+                } else {
+                    reject(new Error(`Connection error: ${err.message}`))
                 }
             })
-            client.on('error', e => reject(e))
-            client.write(JSON.stringify(steps[idx++]) + '\n')
         })
-        client.on('error', e => {
-            clearTimeout(timeout)
-            reject(e)
-        })
-    })
+    } catch (error) {
+        console.error(`[Client Send] Error during setup/lookup for ${email.to}:`, error)
+        throw new Error(
+            `Failed to resolve or connect to remote server: ${error.message}`
+        )
+    }
 }
-
-const app = express()
-app.use(cors(), express.json())
 
 app.post('/api/send', async (req, res) => {
     let logEntry
@@ -189,18 +264,21 @@ app.post('/api/send', async (req, res) => {
         const id = logEntry[0]?.id
         const result = await Promise.race([
             sendEmailToRemoteServer({ from, to, subject, body }),
-            new Promise((_, r) =>
-                setTimeout(() => r(new Error('Connection timed out')), 10000)
+            new Promise((_, reject) =>
+                setTimeout(
+                    () => reject(new Error('Overall send operation timed out')),
+                    16000
+                )
             )
         ])
         if (id) await sql`UPDATE emails SET status='sent' WHERE id=${id}`
         return res.json(result)
-    } catch (e) {
+    } catch (error) {
         const id = logEntry?.[0]?.id
         if (id)
             await sql`UPDATE emails SET status='failed',
-        error_message=${e.message} WHERE id=${id}`
-        return res.status(400).json({ success: false, message: e.message })
+        error_message=${error.message} WHERE id=${id}`
+        return res.status(400).json({ success: false, message: error.message })
     }
 })
 
