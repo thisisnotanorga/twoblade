@@ -17,6 +17,7 @@ CREATE TABLE emails (
     subject TEXT,
     body TEXT,
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    error_message TEXT,
     status VARCHAR(50) DEFAULT 'pending'    -- pending, delivered, failed
 );
 

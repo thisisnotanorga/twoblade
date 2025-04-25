@@ -499,9 +499,11 @@ app.post('/api/send', async (req, res) => {
     console.log('Received email request:', req.body);
     const { from, to, subject, body } = req.body;
 
+    let fromParts, toParts, logEntry;
+
     try {
-        parseSharpAddress(from);
-        parseSharpAddress(to);
+        fromParts = parseSharpAddress(from);
+        toParts = parseSharpAddress(to);
     } catch (e) {
         console.error('Address parsing error:', e);
         return res.status(400).json({
@@ -511,7 +513,20 @@ app.post('/api/send', async (req, res) => {
     }
 
     try {
-        // Set a timeout for the remote server connection
+        console.log(`[Sender] Logging email attempt from ${from} to ${to}`);
+        logEntry = await logEmail(
+            from,
+            fromParts.domain,
+            to,
+            toParts.domain,
+            subject,
+            body,
+            'sending'
+        );
+        const loggedEmailId = logEntry[0]?.id;
+        console.log(`[Sender] Logged email attempt with ID: ${loggedEmailId}`);
+
+
         const result = await Promise.race([
             sendEmailToRemoteServer({ from, to, subject, body }),
             new Promise((_, reject) =>
@@ -519,10 +534,24 @@ app.post('/api/send', async (req, res) => {
             )
         ]);
 
-        console.log('Email sent successfully:', result);
+        console.log('[Sender] Email sent successfully:', result);
+
+        if (loggedEmailId) {
+            await sql`UPDATE emails SET status = 'sent' WHERE id = ${loggedEmailId}`;
+            console.log(`[Sender] Updated email status to 'sent' for ID: ${loggedEmailId}`);
+        }
+
         res.json(result);
+
     } catch (error) {
-        console.error('Email sending error:', error);
+        console.error('[Sender] Email sending error:', error);
+
+        if (logEntry && logEntry[0]?.id) {
+             const loggedEmailId = logEntry[0].id;
+             await sql`UPDATE emails SET status = 'failed', error_message = ${error.message} WHERE id = ${loggedEmailId}`;
+             console.log(`[Sender] Updated email status to 'failed' for ID: ${loggedEmailId}`);
+        }
+
         res.status(400).json({
             success: false,
             message: error.message || 'Failed to send email'
