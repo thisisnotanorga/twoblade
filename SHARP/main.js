@@ -11,7 +11,6 @@ const sql = postgres(process.env.DATABASE_URL)
 
 const verifyUser = (u, d) =>
     sql`SELECT * FROM users WHERE username=${u} AND domain=${d}`.then(r => r[0])
-
 const logEmail = (fa, fd, ta, td, s, b, st = 'pending') =>
     sql`INSERT INTO emails (from_address, from_domain, to_address, to_domain, subject, body, status) VALUES (${fa}, ${fd}, ${ta}, ${td}, ${s}, ${b}, ${st}) RETURNING id`
 
@@ -20,44 +19,61 @@ const parseSharpAddress = a => {
     if (!m) throw new Error('Invalid SHARP address format')
     return { username: m[1], domain: m[2], port: m[3] && +m[3] }
 }
-
 const sendJSON = (s, m) => s.writable && s.write(JSON.stringify(m) + '\n')
-const sendError = (s, e) => (sendJSON(s, { type: 'ERROR', message: e }), s.end())
-
-const app = express();
-app.use(cors());
-app.use(express.json());
+const sendError = (s, e) => {
+    sendJSON(s, { type: 'ERROR', message: e })
+    s.end()
+}
 
 async function handleSharpMessage(socket, raw, state) {
     try {
         const cmd = JSON.parse(raw)
         switch (state.step) {
             case 'HELLO':
-                if (cmd.type !== 'HELLO') return sendError(socket, 'Expected HELLO')
+                if (cmd.type !== 'HELLO') {
+                    sendError(socket, 'Expected HELLO')
+                    return
+                }
                 state.from = cmd.server_id
                 parseSharpAddress(state.from)
                 state.step = 'MAIL_TO'
-                return sendJSON(socket, { type: 'OK' })
+                sendJSON(socket, { type: 'OK' })
+                return
 
             case 'MAIL_TO':
-                if (cmd.type !== 'MAIL_TO') return sendError(socket, 'Expected MAIL_TO')
+                if (cmd.type !== 'MAIL_TO') {
+                    sendError(socket, 'Expected MAIL_TO')
+                    return
+                }
                 state.to = cmd.address
                 const to = parseSharpAddress(state.to)
-                const addr = `${to.domain}${to.port ? ':' + to.port : ''}`
-                if (addr !== DOMAIN)
-                    return sendError(
+                const addr = to.port
+                    ? `${to.domain}:${to.port}`
+                    : to.domain
+                if (addr !== DOMAIN) {
+                    sendError(
                         socket,
                         `This server does not handle mail for ${to.domain}`
                     )
+                    return
+                }
                 const user = await verifyUser(to.username, DOMAIN)
-                if (!user) return sendError(socket, 'Recipient user not found')
+                if (!user) {
+                    sendError(socket, 'Recipient user not found')
+                    return
+                }
                 state.step = 'DATA'
-                return sendJSON(socket, { type: 'OK' })
+                sendJSON(socket, { type: 'OK' })
+                return
 
             case 'DATA':
-                if (cmd.type !== 'DATA') return sendError(socket, 'Expected DATA')
+                if (cmd.type !== 'DATA') {
+                    sendError(socket, 'Expected DATA')
+                    return
+                }
                 state.step = 'RECEIVING_DATA'
-                return sendJSON(socket, { type: 'OK' })
+                sendJSON(socket, { type: 'OK' })
+                return
 
             case 'RECEIVING_DATA':
                 if (cmd.type === 'EMAIL_CONTENT') {
@@ -66,16 +82,16 @@ async function handleSharpMessage(socket, raw, state) {
                 } else if (cmd.type === 'END_DATA') {
                     await processEmail(state)
                     sendJSON(socket, { type: 'OK', message: 'Email processed' })
-                    return socket.end()
+                    socket.end()
                 } else {
-                    return sendError(socket, 'Expected EMAIL_CONTENT or END_DATA')
+                    sendError(socket, 'Expected EMAIL_CONTENT or END_DATA')
                 }
-                break
+                return
 
             default:
-                return sendError(socket, `Unhandled state: ${state.step}`)
+                sendError(socket, `Unhandled state: ${state.step}`)
         }
-    } catch (e) {
+    } catch {
         sendError(socket, 'Invalid message format or processing error')
     }
 }
@@ -91,8 +107,7 @@ async function resolveSRV(domain) {
     if (!recs.length) throw new Error('No SHARP server records found')
     const srv = recs[0]
     const hosts = await dns.resolve4(srv.name)
-    if (!hosts.length)
-        throw new Error('Could not resolve SHARP server address')
+    if (!hosts.length) throw new Error('Could not resolve SHARP server address')
     return { host: hosts[0], port: srv.port }
 }
 
@@ -102,153 +117,92 @@ async function validateRemoteServer(domain) {
             const res = await fetch(`${proto}${domain}/api/server/health`)
             if (!res.ok) continue
             const data = await res.json()
-            if (data.protocol === 'SHARP/1.0')
+            if (data.protocol === 'SHARP/1.0') {
                 return { domain: data.domain, protocol: proto, isValid: true }
+            }
         } catch { }
     }
     return { isValid: false, error: 'Server not reachable or invalid' }
 }
 
 async function sendEmailToRemoteServer(email) {
-    const recipient = parseSharpAddress(email.to)
-    const remoteHost = recipient.domain
-    const explicitPort = recipient.port
-
-    console.log(`[Client Send] Attempting to send email to ${email.to}`)
-
-    try {
-        let serverInfo
-        if (explicitPort) {
-            console.log(
-                `[Client Send] Using explicit address: ${remoteHost}:${explicitPort}`
-            )
-            serverInfo = {
-                host: remoteHost,
-                port: explicitPort,
-                name: `${remoteHost}:${explicitPort}`
-            }
-
-            try {
-                const lookupResult = await dns.lookup(serverInfo.host)
-                console.log(
-                    `[Client Send] DNS lookup for ${serverInfo.host} successful: Address: ${lookupResult.address}, Family: ${lookupResult.family}`
-                )
-            } catch (dnsError) {
-                console.error(
-                    `[Client Send] DNS lookup FAILED for ${serverInfo.host}:`,
-                    dnsError
-                )
+    const rec = parseSharpAddress(email.to)
+    const server = rec.port
+        ? { host: rec.domain, port: rec.port }
+        : await (async () => {
+            const srv = await resolveSRV(rec.domain)
+            const v = await validateRemoteServer(rec.domain)
+            if (!v.isValid) {
                 throw new Error(
-                    `DNS lookup failed for ${serverInfo.host}: ${dnsError.message}`
+                    `Invalid SHARP server config for domain ${rec.domain}: ${v.error}`
                 )
             }
-        } else {
-            console.log(
-                `[Client Send] Looking up SHARP server for domain ${remoteHost}...`
-            )
-            const srv = await resolveSRV(remoteHost)
-            const v = await validateRemoteServer(remoteHost)
-            if (!v.isValid)
-                throw new Error(
-                    `Invalid SHARP server config for domain ${remoteHost}: ${v.error}`
-                )
-            serverInfo = { host: srv.host, port: srv.port, name: remoteHost }
-        }
+            return { host: srv.host, port: srv.port }
+        })()
+    const client = new net.Socket()
 
-        console.log(
-            `[Client Send] Preparing to connect to target SHARP server at ${serverInfo.host}:${serverInfo.port}`
-        )
-        const client = new net.Socket()
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            client.destroy()
+            reject(new Error('Connection timed out'))
+        }, 5000)
 
-        return new Promise((resolve, reject) => {
-            const timeoutDuration = 15000
-            console.log(`[Client Send] Setting connection timeout: ${timeoutDuration}ms`)
-            const timeout = setTimeout(() => {
-                console.error(
-                    `[Client Send] Connection attempt timed out after ${timeoutDuration}ms`
-                )
-                client.destroy()
-                reject(
-                    new Error(
-                        `Connection timed out connecting to ${serverInfo.host}:${serverInfo.port}`
-                    )
-                )
-            }, timeoutDuration)
+        client.connect(server.port, server.host, () => {
+            clearTimeout(timeout)
+            const steps = [
+                { type: 'HELLO', server_id: email.from },
+                { type: 'MAIL_TO', address: email.to },
+                { type: 'DATA' },
+                { type: 'EMAIL_CONTENT', subject: email.subject, body: email.body },
+                { type: 'END_DATA' }
+            ]
+            let idx = 0
+            const responses = []
+            let buf = ''
 
-            console.log(
-                `[Client Send] Initiating connection to ${serverInfo.host}:${serverInfo.port}...`
-            )
-
-            client.connect(serverInfo.port, serverInfo.host, () => {
-                clearTimeout(timeout)
-                console.log(
-                    `[Client Send] Successfully connected to SHARP server ${serverInfo.name} (${serverInfo.host}:${serverInfo.port})`
-                )
-                const steps = [
-                    { type: 'HELLO', server_id: email.from },
-                    { type: 'MAIL_TO', address: email.to },
-                    { type: 'DATA' },
-                    { type: 'EMAIL_CONTENT', subject: email.subject, body: email.body },
-                    { type: 'END_DATA' }
-                ]
-                let idx = 0
-                let buf = ''
-                client.on('data', d => {
-                    buf += d
-                    while (buf.includes('\n')) {
-                        const [line, ...rest] = buf.split('\n')
-                        buf = rest.join('\n')
-                        if (!line.trim()) continue
-                        const res = JSON.parse(line)
-                        if (res.type === 'ERROR') {
+            client.on('data', d => {
+                buf += d
+                while (buf.includes('\n')) {
+                    const [line, ...rest] = buf.split('\n')
+                    buf = rest.join('\n')
+                    if (!line.trim()) continue
+                    const res = JSON.parse(line)
+                    responses.push(res)
+                    if (res.type === 'ERROR') {
+                        client.end()
+                        return reject(new Error(res.message))
+                    }
+                    if (res.type === 'OK') {
+                        if (res.message === 'Email processed') {
                             client.end()
-                            return reject(new Error(res.message))
+                            return resolve({ success: true, responses })
                         }
-                        if (res.type === 'OK') {
-                            if (res.message === 'Email processed') {
-                                client.end()
-                                return resolve({ success: true })
-                            }
-                            if (idx < steps.length) {
+                        if (idx < steps.length) {
+                            client.write(JSON.stringify(steps[idx++]) + '\n')
+                            if (
+                                steps[idx - 1].type === 'EMAIL_CONTENT' &&
+                                steps[idx]?.type === 'END_DATA'
+                            ) {
                                 client.write(JSON.stringify(steps[idx++]) + '\n')
                             }
                         }
                     }
-                })
-                client.on('error', e => reject(e))
-                client.write(JSON.stringify(steps[idx++]) + '\n')
-            })
-
-            client.on('error', err => {
-                clearTimeout(timeout)
-                console.error(
-                    `[Client Send] Connection error for ${serverInfo.host}:${serverInfo.port}: ${err.message}`,
-                    err
-                )
-                if (err.code === 'ECONNREFUSED') {
-                    reject(
-                        new Error(
-                            `Connection refused by ${serverInfo.host}:${serverInfo.port}`
-                        )
-                    )
-                } else if (err.code === 'ENOTFOUND' || err.code === 'EAI_AGAIN') {
-                    reject(
-                        new Error(
-                            `DNS resolution failed for ${serverInfo.host}: ${err.message}`
-                        )
-                    )
-                } else {
-                    reject(new Error(`Connection error: ${err.message}`))
                 }
             })
+
+            client.on('error', e => reject(new Error(e.message)))
+            client.write(JSON.stringify(steps[idx++]) + '\n')
         })
-    } catch (error) {
-        console.error(`[Client Send] Error during setup/lookup for ${email.to}:`, error)
-        throw new Error(
-            `Failed to resolve or connect to remote server: ${error.message}`
-        )
-    }
+
+        client.on('error', e => {
+            clearTimeout(timeout)
+            reject(new Error(e.message))
+        })
+    })
 }
+
+const app = express()
+app.use(cors(), express.json())
 
 app.post('/api/send', async (req, res) => {
     let logEntry
@@ -268,21 +222,20 @@ app.post('/api/send', async (req, res) => {
         const id = logEntry[0]?.id
         const result = await Promise.race([
             sendEmailToRemoteServer({ from, to, subject, body }),
-            new Promise((_, reject) =>
-                setTimeout(
-                    () => reject(new Error('Overall send operation timed out')),
-                    16000
-                )
+            new Promise((_, r) =>
+                setTimeout(() => r(new Error('Connection timed out')), 10000)
             )
         ])
         if (id) await sql`UPDATE emails SET status='sent' WHERE id=${id}`
         return res.json(result)
-    } catch (error) {
+    } catch (e) {
         const id = logEntry?.[0]?.id
-        if (id)
-            await sql`UPDATE emails SET status='failed',
-        error_message=${error.message} WHERE id=${id}`
-        return res.status(400).json({ success: false, message: error.message })
+        if (id) {
+            await sql`UPDATE emails
+        SET status='failed', error_message=${e.message}
+        WHERE id=${id}`
+        }
+        return res.status(400).json({ success: false, message: e.message })
     }
 })
 
@@ -302,11 +255,15 @@ net
                 handleSharpMessage(socket, line, state)
             }
         })
+        socket.on('error', () => { })
+        socket.on('end', () => { })
     })
     .listen(SHARP_PORT, () => {
         console.log(
-            `SHARP TCP server listening on port ${SHARP_PORT} (HTTP on ${HTTP_PORT})`
+            `SHARP TCP server listening on port ${SHARP_PORT} ` +
+            `(HTTP on ${HTTP_PORT})`
         )
+        console.log(`Server address format: user#${DOMAIN}:${SHARP_PORT}`)
     })
 
 app.listen(HTTP_PORT, () => {
