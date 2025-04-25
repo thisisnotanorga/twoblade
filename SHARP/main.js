@@ -24,6 +24,10 @@ const parseSharpAddress = a => {
 const sendJSON = (s, m) => s.writable && s.write(JSON.stringify(m) + '\n')
 const sendError = (s, e) => (sendJSON(s, { type: 'ERROR', message: e }), s.end())
 
+const app = express();
+app.use(cors());
+app.use(express.json());
+
 async function handleSharpMessage(socket, raw, state) {
     try {
         const cmd = JSON.parse(raw)
