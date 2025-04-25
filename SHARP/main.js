@@ -186,9 +186,12 @@ async function handleSharpMessage(socket, message, state) {
                     }
 
                     try {
-                        if (toParts.domain === process.env.DOMAIN_NAME) {
+                        const expectedDomain = process.env.DOMAIN_NAME;
+                        const isLocalDomain = toParts.domain + (toParts.port ? `:${toParts.port}` : '') === expectedDomain;
+
+                        if (isLocalDomain) {
                             console.log(`[${clientAddress}] Verifying local recipient: ${toParts.username}`);
-                            const toUser = await verifyUser(toParts.username, toParts.domain); // Use the local verifyUser
+                            const toUser = await verifyUser(toParts.username, expectedDomain);
                             if (!toUser) {
                                 console.log(`[${clientAddress}] Local recipient ${state.to} not found.`);
                                 sendError(socket, 'Recipient user not found');
@@ -197,7 +200,6 @@ async function handleSharpMessage(socket, message, state) {
                             console.log(`[${clientAddress}] Local recipient ${state.to} verified.`);
                         } else {
                             console.warn(`[${clientAddress}] Received MAIL_TO for non-local domain ${toParts.domain}. This server should not handle it directly via TCP.`);
-
                             sendError(socket, `This server does not handle mail for ${toParts.domain}`);
                             return;
                         }
