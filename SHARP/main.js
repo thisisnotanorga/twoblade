@@ -411,33 +411,83 @@ async function sendEmailToRemoteServer(email) {
 
                 let currentStep = 0;
                 let responses = [];
+                let receivedData = '';
 
                 client.on('data', (data) => {
-                    const response = JSON.parse(data.toString().trim());
-                    responses.push(response);
+                    receivedData += data.toString();
+                    while (true) {
+                        const newlineIndex = receivedData.indexOf('\n');
+                        if (newlineIndex === -1) break;
 
-                    if (response.type === 'ERROR') {
-                        client.end();
-                        reject(response);
-                        return;
-                    }
+                        const messageStr = receivedData.substring(0, newlineIndex).trim();
+                        receivedData = receivedData.substring(newlineIndex + 1);
 
-                    if (response.type === 'OK' && response.message === 'Email processed') {
-                        client.end();
-                        resolve({ success: true, responses });
-                        return;
-                    }
+                        if (!messageStr) continue;
 
-                    if (response.type === 'OK' && currentStep < steps.length) {
-                        client.write(JSON.stringify(steps[currentStep++]) + '\n');
+                        try {
+                            const response = JSON.parse(messageStr);
+                            console.log(`[Client] Received response:`, response);
+                            responses.push(response);
+
+                            if (response.type === 'ERROR') {
+                                console.error(`[Client] Received ERROR from remote server: ${response.message}`);
+                                client.end();
+                                reject(new Error(response.message || 'Remote server returned an error'));
+                                return;
+                            }
+
+                            if (response.type === 'OK' && response.message === 'Email processed') {
+                                console.log('[Client] Remote server confirmed email processed.');
+                                client.end();
+                                resolve({ success: true, responses });
+                                return;
+                            }
+
+                            if (response.type === 'OK' && currentStep < steps.length) {
+                                const stepToSend = steps[currentStep];
+                                const stepMsg = JSON.stringify(stepToSend) + '\n';
+                                console.log(`[Client] Sending step ${currentStep + 1}: ${stepMsg.trim()}`);
+                                client.write(stepMsg);
+                                currentStep++;
+
+                                if (stepToSend.type === 'EMAIL_CONTENT' && currentStep < steps.length && steps[currentStep].type === 'END_DATA') {
+                                    const endDataStep = steps[currentStep];
+                                    const endDataMsg = JSON.stringify(endDataStep) + '\n';
+                                    console.log(`[Client] Immediately sending step ${currentStep + 1}: ${endDataMsg.trim()}`);
+                                    client.write(endDataMsg);
+                                    currentStep++;
+                                }
+                            } else if (response.type !== 'OK') {
+                                console.warn(`[Client] Received unexpected response type: ${response.type}`);
+                            }
+
+                        } catch (parseError) {
+                            console.error('[Client] Error parsing JSON response from server:', parseError, 'Raw data part:', messageStr);
+                            client.end();
+                            reject(new Error('Failed to parse response from remote server'));
+                            return;
+                        }
                     }
+                });
+
+                client.on('end', () => {
+                    console.log('[Client] Connection ended by remote server.');
                 });
 
                 client.on('error', (err) => {
+                    console.error(`[Client] Connection error: ${err.message}`);
                     reject({ success: false, message: `Connection error: ${err.message}` });
                 });
 
-                client.write(JSON.stringify(steps[currentStep++]) + '\n');
+                const firstStepMsg = JSON.stringify(steps[currentStep++]) + '\n';
+                console.log(`[Client] Sending step 1: ${firstStepMsg.trim()}`);
+                client.write(firstStepMsg);
+            });
+
+            client.on('error', (err) => {
+                clearTimeout(timeout);
+                console.error(`[Client] Failed to connect to ${serverInfo.host}:${serverInfo.port}: ${err.message}`);
+                reject(new Error(`Failed to connect to remote server: ${err.message}`));
             });
         });
     } catch (error) {
