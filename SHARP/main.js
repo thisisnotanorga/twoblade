@@ -23,7 +23,7 @@ async function verifyUser(username, domain) {
     const users = await sql`
         SELECT * FROM users 
         WHERE username = ${username} 
-        AND host = ${domain}
+        AND domain = ${domain}
     `;
     return users[0];
 }
