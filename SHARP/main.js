@@ -210,30 +210,37 @@ app.post('/api/send', async (req, res) => {
         const { from, to, subject, body } = req.body
         const fp = parseSharpAddress(from)
         const tp = parseSharpAddress(to)
-        logEntry = await logEmail(
-            from,
-            fp.domain,
-            to,
-            tp.domain,
-            subject,
-            body,
-            'sending'
-        )
+
+        try {
+            await validateRemoteServer(tp.domain)
+        } catch (e) {
+            await logEmail(from, fp.domain, to, tp.domain, subject, body, 'failed')
+            throw new Error(`Invalid destination: ${e.message}`)
+        }
+
+        logEntry = await logEmail(from, fp.domain, to, tp.domain, subject, body, 'sending')
         const id = logEntry[0]?.id
-        const result = await Promise.race([
-            sendEmailToRemoteServer({ from, to, subject, body }),
-            new Promise((_, r) =>
-                setTimeout(() => r(new Error('Connection timed out')), 10000)
-            )
-        ])
-        if (id) await sql`UPDATE emails SET status='sent' WHERE id=${id}`
-        return res.json(result)
+
+        try {
+            const result = await Promise.race([
+                sendEmailToRemoteServer({ from, to, subject, body }),
+                new Promise((_, r) => setTimeout(() => r(new Error('Connection timed out')), 10000))
+            ])
+
+            if (result.responses?.some(r => r.type === 'ERROR')) {
+                if (id) await sql`UPDATE emails SET status='rejected' WHERE id=${id}`
+                return res.status(400).json({ success: false, message: 'Remote server rejected the email' })
+            }
+
+            if (id) await sql`UPDATE emails SET status='sent' WHERE id=${id}`
+            return res.json(result)
+        } catch (e) {
+            throw e
+        }
     } catch (e) {
         const id = logEntry?.[0]?.id
         if (id) {
-            await sql`UPDATE emails
-        SET status='failed', error_message=${e.message}
-        WHERE id=${id}`
+            await sql`UPDATE emails SET status='failed', error_message=${e.message} WHERE id=${id}`
         }
         return res.status(400).json({ success: false, message: e.message })
     }

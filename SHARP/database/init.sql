@@ -1,6 +1,15 @@
 DROP TABLE IF EXISTS emails;
 DROP TABLE IF EXISTS users;
 
+DROP TYPE IF EXISTS email_status;
+CREATE TYPE email_status AS ENUM (
+    'pending',    -- Initial state
+    'sending',    -- Transmission in progress
+    'sent',       -- Successfully delivered
+    'failed',     -- Transmission failed
+    'rejected'    -- Explicitly rejected by remote server
+);
+
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(255) NOT NULL UNIQUE,
@@ -18,7 +27,7 @@ CREATE TABLE emails (
     body TEXT,
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     error_message TEXT DEFAULT NULL,
-    status VARCHAR(50) DEFAULT 'pending'    -- pending, delivered, failed
+    status email_status DEFAULT 'pending'
 );
 
 CREATE INDEX idx_emails_from ON emails(from_address);
