@@ -7,7 +7,7 @@
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
 
 	let from = $state('me#twoblade.com');
-	let to = $state('me#localhost:5000');
+	let to = $state('me#6.tcp.eu.ngrok.io:11949');
 	let subject = $state('');
 	let body = $state('');
 	let status = $state('');
@@ -17,13 +17,15 @@
 	async function handleSubmit(event: { preventDefault: () => void }) {
 		event.preventDefault();
 
-        const sharpAddressRegex = /^[a-zA-Z0-9._%+-]+#(?:[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|localhost(?::\d+)?|(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?)$/;
-        if (!sharpAddressRegex.test(from) || !sharpAddressRegex.test(to)) {
-            status = 'Invalid SHARP address format. Use user#domain.com, user#localhost:port, or user#ip:port';
-            statusColor = 'destructive';
-            isStatusVisible = true;
-            return;
-        }
+        // const sharpAddressRegex =
+        //     /^[a-zA-Z0-9._%+-]+#(?:[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|localhost(?::\d+)?|(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?)$/;
+
+        // if (!sharpAddressRegex.test(from) || !sharpAddressRegex.test(to)) {
+        //     status = 'Invalid SHARP address format. Use user#domain.com, user#localhost:port, or user#ip:port';
+        //     statusColor = 'destructive';
+        //     isStatusVisible = true;
+        //     return;
+        // }
 
 		const emailData = { from, to, subject, body };
 		isStatusVisible = true;
