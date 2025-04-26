@@ -9,6 +9,8 @@ const HTTP_PORT = +process.env.HTTP_PORT || SHARP_PORT + 1
 const DOMAIN = process.env.DOMAIN_NAME || 'localhost'
 const sql = postgres(process.env.DATABASE_URL)
 
+const PROTOCOL_VERSION = 'SHARP/1.0'
+
 const verifyUser = (u, d) =>
     sql`SELECT * FROM users WHERE username=${u} AND domain=${d}`.then(r => r[0])
 const logEmail = (fa, fd, ta, td, s, b, st = 'pending') =>
@@ -34,10 +36,14 @@ async function handleSharpMessage(socket, raw, state) {
                     sendError(socket, 'Expected HELLO')
                     return
                 }
+                if (cmd.protocol !== PROTOCOL_VERSION) {
+                    sendError(socket, `Unsupported protocol version: ${cmd.protocol}`)
+                    return
+                }
                 state.from = cmd.server_id
                 parseSharpAddress(state.from)
                 state.step = 'MAIL_TO'
-                sendJSON(socket, { type: 'OK' })
+                sendJSON(socket, { type: 'OK', protocol: PROTOCOL_VERSION })
                 return
 
             case 'MAIL_TO':
@@ -150,7 +156,7 @@ async function sendEmailToRemoteServer(email) {
         client.connect(server.port, server.host, () => {
             clearTimeout(timeout)
             const steps = [
-                { type: 'HELLO', server_id: email.from },
+                { type: 'HELLO', server_id: email.from, protocol: PROTOCOL_VERSION },
                 { type: 'MAIL_TO', address: email.to },
                 { type: 'DATA' },
                 { type: 'EMAIL_CONTENT', subject: email.subject, body: email.body },
@@ -247,7 +253,7 @@ app.post('/api/send', async (req, res) => {
 })
 
 app.get('/api/server/health', (_, res) =>
-    res.json({ status: 'ok', protocol: 'SHARP/1.0', domain: DOMAIN })
+    res.json({ status: 'ok', protocol: PROTOCOL_VERSION, domain: DOMAIN })
 )
 
 net
