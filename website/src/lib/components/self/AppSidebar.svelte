@@ -22,30 +22,39 @@
 	} from 'lucide-svelte';
 	import { mode, setMode } from 'mode-watcher';
 	import type { HTMLAttributes } from 'svelte/elements';
+	import { currentTab } from '$lib/stores/navigation';
 
 	const data = {
 		navMain: [
-			{ title: 'Inbox', url: '#', icon: Inbox },
-			{ title: 'Starred', url: '#', icon: Star },
-			{ title: 'Snoozed', url: '#', icon: Clock },
-			{ title: 'Sent', url: '#', icon: Send },
-			{ title: 'Drafts', url: '#', icon: NotepadTextIcon }
+			{ title: 'Inbox', url: '/index', icon: Inbox },
+			{ title: 'Starred', url: '/starred', icon: Star },
+			{ title: 'Snoozed', url: '/snoozed', icon: Clock },
+			{ title: 'Sent', url: '/sent', icon: Send },
+			{ title: 'Drafts', url: '/drafts', icon: NotepadTextIcon }
 		],
 		navMore: [
-			{ title: 'Scheduled', url: '#', icon: ClockFading },
-			{ title: 'All Mail', url: '#', icon: Mails },
-			{ title: 'Spam', url: '#', icon: CircleAlert },
-			{ title: 'Trash', url: '#', icon: Trash2 }
+			{ title: 'Scheduled', url: '/scheduled', icon: ClockFading },
+			{ title: 'All Mail', url: '/all', icon: Mails },
+			{ title: 'Spam', url: '/spam', icon: CircleAlert },
+			{ title: 'Trash', url: '/trash', icon: Trash2 }
 		],
 		categories: [
-			{ title: 'Social', url: '#', icon: UsersRound },
-			{ title: 'Updates', url: '#', icon: Info },
-			{ title: 'Forums', url: '#', icon: MessagesSquare },
-			{ title: 'Promotions', url: '#', icon: Tag }
+			{ title: 'Social', url: '/social', icon: UsersRound },
+			{ title: 'Updates', url: '/updates', icon: Info },
+			{ title: 'Forums', url: '/forums', icon: MessagesSquare },
+			{ title: 'Promotions', url: '/promotions', icon: Tag }
 		]
 	};
 	let isExpanded = $state(false);
 	type MenuButtonProps = HTMLAttributes<HTMLAnchorElement | HTMLButtonElement>;
+
+	function handleNavClick(title: string) {
+		$currentTab = title;
+	}
+
+	$effect(() => {
+		console.log($currentTab)
+	})
 </script>
 
 <Sidebar.Root collapsible="offcanvas" variant="inset">
@@ -65,7 +74,13 @@
 						<Sidebar.MenuItem>
 							<Sidebar.MenuButton>
 								{#snippet child({ props }: { props: MenuButtonProps })}
-									<a href={item.url || '/'} {...props}>
+									<a
+										href={item.url || '/'}
+										onclick={() => handleNavClick(item.title)}
+										class={`${
+											$currentTab === item.title ? 'bg-accent text-accent-foreground' : ''
+										} ${props.class}`}
+									>
 										<item.icon />
 										<span>{item.title}</span>
 									</a>
@@ -98,7 +113,13 @@
 							<Sidebar.MenuItem>
 								<Sidebar.MenuButton>
 									{#snippet child({ props }: { props: MenuButtonProps })}
-										<a href={item.url || '/'} {...props}>
+										<a
+											href={item.url || '/'}
+											onclick={() => handleNavClick(item.title)}
+											class={`${
+												$currentTab === item.title ? 'bg-accent text-accent-foreground' : ''
+											} ${props.class}`}
+										>
 											<item.icon />
 											<span>{item.title}</span>
 										</a>
@@ -115,7 +136,11 @@
 							<Sidebar.MenuItem>
 								<Sidebar.MenuButton>
 									{#snippet child({ props }: { props: MenuButtonProps })}
-										<a href={item.url || '/'} {...props}>
+										<a
+											href={item.url || '/'}
+											onclick={() => handleNavClick(item.url, item.title)}
+											{...props}
+										>
 											<item.icon />
 											<span>{item.title}</span>
 										</a>

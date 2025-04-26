@@ -4,6 +4,7 @@
 	import AppSidebar from '$lib/components/self/AppSidebar.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { Separator } from '$lib/components/ui/separator';
+	import { currentTab } from '$lib/stores/navigation';
 
 	let { children } = $props();
 </script>
@@ -18,7 +19,7 @@
 			<div class="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
 				<Sidebar.Trigger class="-ml-1" />
 				<Separator orientation="vertical" class="mx-2 data-[orientation=vertical]:h-4" />
-				<h1 class="text-base font-medium">Documents</h1>
+				<h1 class="text-base font-medium">{$currentTab}</h1>
 			</div>
 		</header>
 
