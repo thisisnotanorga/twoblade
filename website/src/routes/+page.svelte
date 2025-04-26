@@ -1,42 +1,163 @@
 <script lang="ts">
-    import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "$lib/components/ui/table";
-    import type { PageData } from './$types';
+	import type { PageData } from './$types';
+	import { Square, CheckSquare } from 'lucide-svelte';
+	import { ScrollArea } from '$lib/components/ui/scroll-area';
+	import { scale } from 'svelte/transition';
+	import Star from '$lib/components/self/icons/Star.svelte';
 
-    export let data: PageData;
+	interface Email {
+		id: string;
+		from_address: string;
+		subject: string;
+		sent_at: string;
+	}
 
-    function formatDate(date: string) {
-        return new Date(date).toLocaleString();
-    }
+	interface Props {
+		data: { emails: Email[] } & PageData;
+	}
+
+	let { data }: Props = $props();
+
+	// Multiply emails 10 times for testing
+	let multipliedEmails = $derived(
+		[...Array(10)].flatMap(
+			() =>
+				data.emails.map((email) => ({
+					...email,
+					id: `${email.id}-${Math.random()}` // Ensure unique IDs
+				})) as Email[]
+		)
+	);
+
+	let selectedEmail: Email | null = $state(null);
+	let selectedEmails = $state<Set<string>>(new Set());
+	let starredEmails = $state<Set<string>>(new Set());
+
+	function formatDate(date: string) {
+		return new Date(date).toLocaleString([], {
+			month: 'short',
+			day: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit'
+		});
+	}
+
+	function toggleSelect(emailId: string) {
+		const newSet = new Set(selectedEmails);
+		if (newSet.has(emailId)) {
+			newSet.delete(emailId);
+		} else {
+			newSet.add(emailId);
+		}
+		selectedEmails = newSet;
+	}
+
+	function toggleStar(emailId: string) {
+		const newSet = new Set(starredEmails);
+		if (newSet.has(emailId)) {
+			newSet.delete(emailId);
+		} else {
+			newSet.add(emailId);
+		}
+		starredEmails = newSet;
+	}
+
+	function handleKeyDown(event: KeyboardEvent, email: any) {
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			selectedEmail = email;
+		}
+	}
 </script>
 
-<div class="container mx-auto py-10">
-    <h1 class="text-3xl font-bold mb-6">Email History</h1>
-
-    <Table>
-        <TableHeader>
-            <TableRow>
-                <TableHead>From</TableHead>
-                <TableHead>To</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Sent At</TableHead>
-            </TableRow>
-        </TableHeader>
-        <TableBody>
-            {#each data.emails as email}
-                <TableRow>
-                    <TableCell>{email.from_address}</TableCell>
-                    <TableCell>{email.to_address}</TableCell>
-                    <TableCell>{email.subject}</TableCell>
-                    <TableCell>
-                        <span class={email.status === 'delivered' ? 'text-green-600' : 
-                                  email.status === 'failed' ? 'text-red-600' : 'text-yellow-600'}>
-                            {email.status}
-                        </span>
-                    </TableCell>
-                    <TableCell>{formatDate(email.sent_at)}</TableCell>
-                </TableRow>
-            {/each}
-        </TableBody>
-    </Table>
+<div class="w-full">
+	<ScrollArea class="h-[calc(100vh-6rem)] w-full">
+		<div class="flex flex-col gap-1 px-4 py-4 md:px-6">
+			{#each multipliedEmails as email (email.id)}
+				<button
+					type="button"
+					class={`hover:bg-accent hover:text-accent-foreground flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-colors ${
+						selectedEmails.has(email.id) ? 'bg-accent text-accent-foreground' : ''
+					}`}
+					aria-label={`Email from ${email.from_address} with subject ${email.subject}`}
+					onclick={() => (selectedEmail = email)}
+					onkeydown={(e) => handleKeyDown(e, email)}
+				>
+					<div class="flex w-full items-center">
+						<div class="flex items-center space-x-1">
+							<span
+								class="hover:bg-primary/10 group rounded-full p-1.5 transition-colors"
+								role="checkbox"
+								aria-checked={selectedEmails.has(email.id)}
+								tabindex="0"
+								onclick={(e) => {
+									e.stopPropagation();
+									toggleSelect(email.id);
+								}}
+								onkeydown={(e) => {
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.preventDefault();
+										e.stopPropagation();
+										toggleSelect(email.id);
+									}
+								}}
+							>
+								{#if selectedEmails.has(email.id)}
+									<div in:scale|fade={{ duration: 150 }}>
+										<CheckSquare class="text-primary h-5 w-5" />
+									</div>
+								{:else}
+									<div in:scale|fade={{ duration: 150 }}>
+										<Square class="group-hover:text-primary h-5 w-5 text-gray-400" />
+									</div>
+								{/if}
+							</span>
+							<span
+								class="group rounded-full p-1.5 transition-colors ease-in-out hover:bg-yellow-400/10"
+								role="button"
+								aria-pressed={starredEmails.has(email.id)}
+								tabindex="0"
+								onclick={(e) => {
+									e.stopPropagation();
+									toggleStar(email.id);
+								}}
+								onkeydown={(e) => {
+									if (e.key === 'Enter' || e.key === ' ') {
+										e.preventDefault();
+										e.stopPropagation();
+										toggleStar(email.id);
+									}
+								}}
+							>
+								{#if starredEmails.has(email.id)}
+									<div in:scale|fade={{ duration: 150 }}>
+										<Star class="h-5 w-5 text-yellow-500" filled={true} />
+									</div>
+								{:else}
+									<div in:scale|fade={{ duration: 150 }}>
+										<Star class="group-hover:text-red-40 h-5 w-5 text-gray-400" />
+									</div>
+								{/if}
+							</span>
+						</div>
+						<div class="ml-3 flex flex-1 items-center space-x-3">
+							<span class="max-w-[200px] truncate font-medium">{email.from_address}</span>
+							<span class="flex-grow truncate">{email.subject} - {email.subject}</span>
+							<span class="whitespace-nowrap text-xs/snug">{formatDate(email.sent_at)}</span>
+						</div>
+					</div>
+				</button>
+			{/each}
+		</div>
+	</ScrollArea>
 </div>
+
+<style>
+	:global(html) {
+		scrollbar-width: none;
+		-ms-overflow-style: none;
+	}
+	:global(html::-webkit-scrollbar) {
+		display: none;
+	}
+</style>

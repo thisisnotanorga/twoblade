@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { ModeWatcher } from 'mode-watcher';
-	import AppSidebar from '$lib/self/AppSidebar.svelte';
+	import AppSidebar from '$lib/components/self/AppSidebar.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { Separator } from '$lib/components/ui/separator';
 

@@ -67,7 +67,7 @@
 							<Sidebar.MenuButton>
 								{#snippet child({ props }: { props: MenuButtonProps })}
 									<a href={item.url || '/'} {...props}>
-										<svelte:component this={item.icon} />
+										<item.icon />
 										<span>{item.title}</span>
 									</a>
 								{/snippet}
@@ -100,7 +100,7 @@
 								<Sidebar.MenuButton>
 									{#snippet child({ props }: { props: MenuButtonProps })}
 										<a href={item.url || '/'} {...props}>
-											<svelte:component this={item.icon} />
+											<item.icon />
 											<span>{item.title}</span>
 										</a>
 									{/snippet}
@@ -117,7 +117,7 @@
 								<Sidebar.MenuButton>
 									{#snippet child({ props }: { props: MenuButtonProps })}
 										<a href={item.url || '/'} {...props}>
-											<svelte:component this={item.icon} />
+											<item.icon />
 											<span>{item.title}</span>
 										</a>
 									{/snippet}
