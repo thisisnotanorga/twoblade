@@ -134,8 +134,6 @@ async function validateRemoteServer(domain) {
     return { isValid: false, error: 'Server not reachable or invalid' }
 }
 
-import net from 'net'
-
 async function sendEmailToRemoteServer(email) {
     const rec = parseSharpAddress(email.to)
     const server = rec.port
