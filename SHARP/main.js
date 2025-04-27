@@ -223,26 +223,40 @@ app.post('/api/send', async (req, res) => {
     let logEntry
     try {
         const { from, to, subject, body, content_type = 'text/plain', html_body } = req.body
+        console.log('Received email request:', { from, to, subject, content_type });
+
         const fp = parseSharpAddress(from)
         const tp = parseSharpAddress(to)
+        console.log('Parsed addresses:', { from: fp, to: tp });
 
         try {
+            console.log('Validating remote server for domain:', tp.domain);
             await validateRemoteServer(tp.domain)
+            console.log('Remote server validation successful');
         } catch (e) {
+            console.error('Remote server validation failed:', e);
             await logEmail(from, fp.domain, to, tp.domain, subject, body, content_type, html_body, 'failed')
             throw new Error(`Invalid destination: ${e.message}`)
         }
 
         logEntry = await logEmail(from, fp.domain, to, tp.domain, subject, body, content_type, html_body, 'sending')
         const id = logEntry[0]?.id
+        console.log('Created email log entry with ID:', id);
 
         try {
+            console.log('Attempting to send email to remote server');
             const result = await Promise.race([
                 sendEmailToRemoteServer({ from, to, subject, body, content_type, html_body }),
-                new Promise((_, r) => setTimeout(() => r(new Error('Connection timed out')), 10000))
+                new Promise((_, r) => setTimeout(() => {
+                    console.log('Email send operation timed out after 10 seconds');
+                    r(new Error('Connection timed out'))
+                }, 10000))
             ])
 
+            console.log('Send result:', result);
+
             if (result.responses?.some(r => r.type === 'ERROR')) {
+                console.log('Remote server returned error response');
                 if (id) await sql`UPDATE emails SET status='rejected' WHERE id=${id}`
                 return res.status(400).json({ success: false, message: 'Remote server rejected the email' })
             }
@@ -250,9 +264,11 @@ app.post('/api/send', async (req, res) => {
             if (id) await sql`UPDATE emails SET status='sent' WHERE id=${id}`
             return res.json(result)
         } catch (e) {
+            console.error('Error sending email:', e);
             throw e
         }
     } catch (e) {
+        console.error('Request failed:', e);
         const id = logEntry?.[0]?.id
         if (id) {
             await sql`UPDATE emails SET status='failed', error_message=${e.message} WHERE id=${id}`
