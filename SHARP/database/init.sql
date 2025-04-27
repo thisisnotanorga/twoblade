@@ -25,6 +25,8 @@ CREATE TABLE emails (
     to_domain VARCHAR(255) NOT NULL,        -- extracted domain
     subject TEXT,
     body TEXT,
+    content_type VARCHAR(50) DEFAULT 'text/plain',
+    html_body TEXT,
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     error_message TEXT DEFAULT NULL,
     status email_status DEFAULT 'pending'

@@ -13,8 +13,9 @@ const PROTOCOL_VERSION = 'SHARP/1.0'
 
 const verifyUser = (u, d) =>
     sql`SELECT * FROM users WHERE username=${u} AND domain=${d}`.then(r => r[0])
-const logEmail = (fa, fd, ta, td, s, b, st = 'pending') =>
-    sql`INSERT INTO emails (from_address, from_domain, to_address, to_domain, subject, body, status) VALUES (${fa}, ${fd}, ${ta}, ${td}, ${s}, ${b}, ${st}) RETURNING id`
+const logEmail = (fa, fd, ta, td, s, b, ct = 'text/plain', hb = null, st = 'pending') =>
+    sql`INSERT INTO emails (from_address, from_domain, to_address, to_domain, subject, body, content_type, html_body, status) 
+        VALUES (${fa}, ${fd}, ${ta}, ${td}, ${s}, ${b}, ${ct}, ${hb}, ${st}) RETURNING id`
 
 const parseSharpAddress = a => {
     const m = a.match(/^(.+)#([^:]+)(?::(\d+))?$/)
@@ -83,16 +84,18 @@ async function handleSharpMessage(socket, raw, state) {
 
             case 'RECEIVING_DATA':
                 if (cmd.type === 'EMAIL_CONTENT') {
-                    state.subject = cmd.subject
-                    state.body = cmd.body
+                    state.subject = cmd.subject;
+                    state.body = cmd.body;
+                    state.content_type = cmd.content_type || 'text/plain';
+                    state.html_body = cmd.html_body || null;
                 } else if (cmd.type === 'END_DATA') {
-                    await processEmail(state)
-                    sendJSON(socket, { type: 'OK', message: 'Email processed' })
-                    socket.end()
+                    await processEmail(state);
+                    sendJSON(socket, { type: 'OK', message: 'Email processed' });
+                    socket.end();
                 } else {
-                    sendError(socket, 'Expected EMAIL_CONTENT or END_DATA')
+                    sendError(socket, 'Expected EMAIL_CONTENT or END_DATA');
                 }
-                return
+                return;
 
             default:
                 sendError(socket, `Unhandled state: ${state.step}`)
@@ -102,10 +105,10 @@ async function handleSharpMessage(socket, raw, state) {
     }
 }
 
-async function processEmail({ from, to, subject, body }) {
+async function processEmail({ from, to, subject, body, content_type, html_body }) {
     const f = parseSharpAddress(from)
     const t = parseSharpAddress(to)
-    await logEmail(from, f.domain, to, t.domain, subject, body)
+    await logEmail(from, f.domain, to, t.domain, subject, body, content_type, html_body)
 }
 
 async function resolveSRV(domain) {
