@@ -4,14 +4,20 @@ import { PUBLIC_DOMAIN } from '$env/static/public';
 
 export const POST: RequestHandler = async ({ request }) => {
     try {
+        // Check server status first
+        const statusUrl = `https://${PUBLIC_DOMAIN}/api/server/health`;
+        const statusResponse = await fetch(statusUrl);
+        
+        if (!statusResponse.ok) {
+            return json({ 
+                status: 'error', 
+                message: 'Server is not available' 
+            }, { status: 503 });
+        }
+        console.log(await statusResponse.json())
         const emailData = await request.json();
-        const { from, to, subject, body } = emailData;
-        console.log('Received request:', { from, to, subject, body });
-
-        // const emailRegex = /^[a-zA-Z0-9._%+-]+#[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-        // if (!emailRegex.test(from) || !emailRegex.test(to)) {
-        //     return json({ status: 'error', message: 'Invalid email format. Use user#domain.com' }, { status: 400 });
-        // }
+        const { from, to, subject, body, content_type = 'text/plain', html_body } = emailData;
+        console.log('Received request:', { from, to, subject, body, content_type, html_body });
 
         console.log(`Sending to ${PUBLIC_DOMAIN}/api/send...`);
         const apiUrl = `https://${PUBLIC_DOMAIN}/api/send`;
@@ -21,10 +27,9 @@ export const POST: RequestHandler = async ({ request }) => {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ from, to, subject, body })
+            body: JSON.stringify({ from, to, subject, body, content_type, html_body })
         });
 
-        
         console.log('Response status:', response.status);
         const responseText = await response.text();
         console.log('Response body:', responseText);

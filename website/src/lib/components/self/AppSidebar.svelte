@@ -138,7 +138,7 @@
 									{#snippet child({ props }: { props: MenuButtonProps })}
 										<a
 											href={item.url || '/'}
-											onclick={() => handleNavClick(item.url, item.title)}
+											onclick={() => handleNavClick(item.title)}
 											{...props}
 										>
 											<item.icon />

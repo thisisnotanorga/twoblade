@@ -5,11 +5,16 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Alert, AlertDescription } from '$lib/components/ui/alert';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
+	import { Switch } from '$lib/components/ui/switch';
+	import type { EmailContentType } from '$lib/types/email';
+	import { PUBLIC_DOMAIN } from '$env/static/public';
 
-	let from = $state('me#twoblade.com');
-	let to = $state('me#6.tcp.eu.ngrok.io:11949');
+	let from = $state('admin#' + PUBLIC_DOMAIN);
+	let to = $state('admin#2.tcp.eu.ngrok.io:12802');
 	let subject = $state('');
 	let body = $state('');
+	let htmlMode = $state(false);
+	let htmlBody = $state('');
 	let status = $state('');
 	let isStatusVisible = $state(false);
 	let statusColor = $state<'default' | 'destructive'>('default');
@@ -17,17 +22,15 @@
 	async function handleSubmit(event: { preventDefault: () => void }) {
 		event.preventDefault();
 
-        // const sharpAddressRegex =
-        //     /^[a-zA-Z0-9._%+-]+#(?:[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|localhost(?::\d+)?|(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?)$/;
-
-        // if (!sharpAddressRegex.test(from) || !sharpAddressRegex.test(to)) {
-        //     status = 'Invalid SHARP address format. Use user#domain.com, user#localhost:port, or user#ip:port';
-        //     statusColor = 'destructive';
-        //     isStatusVisible = true;
-        //     return;
-        // }
-
-		const emailData = { from, to, subject, body };
+		const contentType: EmailContentType = htmlMode ? 'text/html' : 'text/plain';
+		const emailData = { 
+			from, 
+			to, 
+			subject, 
+			body, 
+			content_type: contentType,
+			html_body: htmlMode ? htmlBody : null 
+		};
 		isStatusVisible = true;
 		status = 'Sending...';
 
@@ -83,8 +86,26 @@
 					class="w-full"
 				/>
 
-				<Label for="body">Body</Label>
-				<Textarea id="body" bind:value={body} class="min-h-[150px]" />
+				<div class="flex items-center space-x-2 py-2">
+					<Switch id="html-mode" bind:checked={htmlMode} />
+					<Label for="html-mode">Enable HTML Mode</Label>
+				</div>
+
+				{#if htmlMode}
+					<Label for="html-body">HTML Content</Label>
+					<Textarea 
+						id="html-body" 
+						bind:value={htmlBody} 
+						class="min-h-[150px] font-mono" 
+						placeholder="<p>Your HTML content here</p>"
+					/>
+					<div class="text-sm text-muted-foreground">
+						Plain text will be used as fallback for clients that don't support HTML.
+					</div>
+				{:else}
+					<Label for="body">Body</Label>
+					<Textarea id="body" bind:value={body} class="min-h-[150px]" />
+				{/if}
 			</div>
 
 			<Button type="submit" class="w-full">Send SHARP Email</Button>

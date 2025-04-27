@@ -7,7 +7,6 @@
 	import EmailViewer from '$lib/components/self/EmailViewer.svelte';
 	import type { Email } from '$lib/types/email';
 	import * as Resizable from '$lib/components/ui/resizable/index.js';
-	import { currentTab } from '$lib/stores/navigation';
 
 	interface Props {
 		data: { emails: Email[] } & PageData;
@@ -28,8 +27,10 @@
 	let selectedEmail: Email | null = $state(null);
 	let selectedEmails = $state<Set<string>>(new Set());
 	let starredEmails = $state<Set<string>>(new Set());
-	let isActiveTab = $derived($currentTab === 'Inbox');
 
+		$effect(() => {
+			console.log(selectedEmail)
+		})
 	function formatDate(date: string) {
 		return new Date(date).toLocaleString([], {
 			month: 'short',
@@ -133,17 +134,18 @@
 										{/if}
 									</span>
 								</div>
-								<div class="ml-3 flex flex-1 items-center space-x-3">
-									<span class="max-w-[200px] truncate font-medium">
-										{email.from_address}
-									</span>
-									<span class="flex-grow truncate">
-										{email.subject} - {email.body}
-									</span>
-									<span class="whitespace-nowrap text-xs/snug">
-										{formatDate(email.sent_at)}
-									</span>
-								</div>
+								<div class="ml-3 flex flex-1 items-center space-x-3 min-w-0">
+                                    <span class="max-w-[200px] truncate font-medium">
+                                        {email.from_address}
+                                    </span>
+                                    <div class="flex-1 truncate">
+                                        <span class="mr-1">{email.subject}</span>
+                                        <span class="text-muted-foreground">- {email.body}</span>
+                                    </div>
+                                    <span class="flex-shrink-0 whitespace-nowrap text-xs/snug">
+                                        {formatDate(email.sent_at)}
+                                    </span>
+                                </div>
 							</div>
 						</button>
 					{/each}
