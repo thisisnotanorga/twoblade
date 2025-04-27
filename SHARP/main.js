@@ -196,7 +196,7 @@ async function sendEmailToRemoteServer(email) {
                             client.write(JSON.stringify(steps[idx++]) + '\n')
                             if (
                                 steps[idx - 1].type === 'EMAIL_CONTENT' &&
-                                steps[idx?.type === 'END_DATA']
+                                steps[idx?.type] === 'END_DATA'
                             ) {
                                 client.write(JSON.stringify(steps[idx++]) + '\n')
                             }
