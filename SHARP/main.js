@@ -162,7 +162,13 @@ async function sendEmailToRemoteServer(email) {
                 { type: 'HELLO', server_id: email.from, protocol: PROTOCOL_VERSION },
                 { type: 'MAIL_TO', address: email.to },
                 { type: 'DATA' },
-                { type: 'EMAIL_CONTENT', subject: email.subject, body: email.body },
+                {
+                    type: 'EMAIL_CONTENT',
+                    subject: email.subject,
+                    body: email.body,
+                    content_type: email.content_type,
+                    html_body: email.html_body
+                },
                 { type: 'END_DATA' }
             ]
             let idx = 0
@@ -190,7 +196,7 @@ async function sendEmailToRemoteServer(email) {
                             client.write(JSON.stringify(steps[idx++]) + '\n')
                             if (
                                 steps[idx - 1].type === 'EMAIL_CONTENT' &&
-                                steps[idx]?.type === 'END_DATA'
+                                steps[idx?.type === 'END_DATA']
                             ) {
                                 client.write(JSON.stringify(steps[idx++]) + '\n')
                             }
@@ -216,23 +222,23 @@ app.use(cors(), express.json())
 app.post('/api/send', async (req, res) => {
     let logEntry
     try {
-        const { from, to, subject, body } = req.body
+        const { from, to, subject, body, content_type = 'text/plain', html_body } = req.body
         const fp = parseSharpAddress(from)
         const tp = parseSharpAddress(to)
 
         try {
             await validateRemoteServer(tp.domain)
         } catch (e) {
-            await logEmail(from, fp.domain, to, tp.domain, subject, body, 'failed')
+            await logEmail(from, fp.domain, to, tp.domain, subject, body, content_type, html_body, 'failed')
             throw new Error(`Invalid destination: ${e.message}`)
         }
 
-        logEntry = await logEmail(from, fp.domain, to, tp.domain, subject, body, 'sending')
+        logEntry = await logEmail(from, fp.domain, to, tp.domain, subject, body, content_type, html_body, 'sending')
         const id = logEntry[0]?.id
 
         try {
             const result = await Promise.race([
-                sendEmailToRemoteServer({ from, to, subject, body }),
+                sendEmailToRemoteServer({ from, to, subject, body, content_type, html_body }),
                 new Promise((_, r) => setTimeout(() => r(new Error('Connection timed out')), 10000))
             ])
 
