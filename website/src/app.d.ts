@@ -1,13 +1,20 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
+
+type UserSessionData = {
+	id: number;
+	username: string;
+	domain: string;
+	is_banned: boolean;
+	created_at: string;
+} | null;
+
 declare global {
 	namespace App {
-		// interface Error {}
-		// interface Locals {}
-		// interface PageData {}
-		// interface PageState {}
-		// interface Platform {}
+		interface Locals {
+			user: UserSessionData;
+		}
 	}
 }
 
-export {};
+export { };

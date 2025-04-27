@@ -14,16 +14,6 @@
 
 	let { data }: Props = $props();
 
-	let multipliedEmails = $derived(
-		[...Array(10)].flatMap(
-			() =>
-				data.emails.map((email) => ({
-					...email,
-					id: `${email.id}-${Math.random()}`
-				})) as Email[]
-		)
-	);
-
 	let selectedEmail: Email | null = $state(null);
 	let selectedEmails = $state<Set<string>>(new Set());
 	let starredEmails = $state<Set<string>>(new Set());
@@ -67,7 +57,7 @@
 		<Resizable.Pane minSize={25} maxSize={80}>
 			<ScrollArea class="h-full w-full">
 				<div class="flex flex-col gap-1 px-4 py-4 md:px-6">
-					{#each multipliedEmails as email (email.id)}
+					{#each data.emails as email (email.id)}
 						<button
 							type="button"
 							class={`hover:bg-accent hover:text-accent-foreground flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-colors ${

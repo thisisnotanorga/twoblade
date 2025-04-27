@@ -50,7 +50,6 @@
 	}
 
 	$effect(() => {
-		// Remove previous hooks before adding new ones, especially if email changes
 		DOMPurify.removeHook('uponSanitizeElement');
 		DOMPurify.removeHook('uponSanitizeAttribute');
 
@@ -58,7 +57,6 @@
 			(DOMPurify as any).addHook(
 				'uponSanitizeElement',
 				(node: Element, data: { tagName: string }) => {
-					// ... existing element hook logic ...
 					const attrs =
 						ALLOWED_HTML_ATTRIBUTES[data.tagName as keyof typeof ALLOWED_HTML_ATTRIBUTES];
 					if (attrs) {
@@ -67,10 +65,10 @@
 								node.removeAttribute(attr.name);
 							}
 						});
-					} else if (data.tagName !== '*') {
-                        // Remove all attributes if tag is not '*' and has no specific allowed attributes
-                        Array.from(node.attributes).forEach(attr => node.removeAttribute(attr.name));
-                    }
+					} else if (data.tagName !== '*' && node.attributes) {
+						// Remove all attributes if tag is not '*' and has no specific allowed attributes
+						Array.from(node.attributes).forEach(attr => node.removeAttribute(attr.name));
+					}
 				}
 			);
 
@@ -146,7 +144,7 @@
 
 		<div class="prose max-w-5xl flex-1 px-4">
 			{#if email.content_type === 'text/html' && email.html_body}
-				{@html getSanitizedContent(email, $mode)}
+				{@html getSanitizedContent(email, $mode ?? 'light')}
 			{:else}
 				<p class="whitespace-pre-wrap">{email.body}</p>
 			{/if}
