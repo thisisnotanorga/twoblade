@@ -267,8 +267,14 @@ app.get('/api/server/health', (_, res) =>
 
 net
     .createServer(socket => {
+        const remoteAddress = `${socket.remoteAddress}:${socket.remotePort}`;
+
+        console.log(`Connection established from ${remoteAddress}`);
+
         const state = { step: 'HELLO', buffer: '' }
         socket.on('data', d => {
+            console.log(`Received data from ${remoteAddress}: ${d.toString().trim()}`);
+
             state.buffer += d
             let idx
             while ((idx = state.buffer.indexOf('\n')) > -1) {
@@ -277,8 +283,15 @@ net
                 handleSharpMessage(socket, line, state)
             }
         })
-        socket.on('error', () => { })
-        socket.on('end', () => { })
+        socket.on('error', (err) => {
+            console.error(`Socket error from ${remoteAddress}:`, err);
+        });
+        socket.on('end', () => {
+            console.log(`Connection ended from ${remoteAddress}`);
+        });
+        socket.on('close', (hadError) => {
+            console.log(`Connection closed from ${remoteAddress}. Had error: ${hadError}`);
+        });
     })
     .listen(SHARP_PORT, () => {
         console.log(
