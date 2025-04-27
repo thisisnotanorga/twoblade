@@ -134,6 +134,8 @@ async function validateRemoteServer(domain) {
     return { isValid: false, error: 'Server not reachable or invalid' }
 }
 
+import net from 'net'
+
 async function sendEmailToRemoteServer(email) {
     const rec = parseSharpAddress(email.to)
     const server = rec.port
@@ -148,16 +150,24 @@ async function sendEmailToRemoteServer(email) {
             }
             return { host: srv.host, port: srv.port }
         })()
-    const client = new net.Socket()
 
+    console.log(
+        `[sendEmailToRemoteServer] dialing TCP ${server.host}:${server.port}`
+    )
+    const client = new net.Socket()
     return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
+        const timer = setTimeout(() => {
             client.destroy()
             reject(new Error('Connection timed out'))
-        }, 5000)
+        }, 10_000)
 
-        client.connect(server.port, server.host, () => {
-            clearTimeout(timeout)
+        client.on('error', err => {
+            clearTimeout(timer)
+            reject(new Error(err.message))
+        })
+
+        client.connect({ host: server.host, port: server.port, family: 4 }, () => {
+            clearTimeout(timer)
             const steps = [
                 { type: 'HELLO', server_id: email.from, protocol: PROTOCOL_VERSION },
                 { type: 'MAIL_TO', address: email.to },
@@ -173,18 +183,24 @@ async function sendEmailToRemoteServer(email) {
             ]
             let idx = 0
             const responses = []
-            let buf = ''
 
-            client.on('data', d => {
-                buf += d
-                while (buf.includes('\n')) {
-                    const [line, ...rest] = buf.split('\n')
-                    buf = rest.join('\n')
-                    if (!line.trim()) continue
-                    const res = JSON.parse(line)
+            client.on('data', chunk => {
+                const lines = chunk.toString().split('\n').filter(Boolean)
+                for (const line of lines) {
+                    console.log(
+                        '[sendEmailToRemoteServer] recv␊',
+                        line.trim()
+                    )
+                    let res
+                    try {
+                        res = JSON.parse(line)
+                    } catch {
+                        client.destroy()
+                        return reject(new Error('Invalid JSON from remote'))
+                    }
                     responses.push(res)
                     if (res.type === 'ERROR') {
-                        client.end()
+                        client.destroy()
                         return reject(new Error(res.message))
                     }
                     if (res.type === 'OK') {
@@ -193,28 +209,28 @@ async function sendEmailToRemoteServer(email) {
                             return resolve({ success: true, responses })
                         }
                         if (idx < steps.length) {
-                            client.write(JSON.stringify(steps[idx++]) + '\n')
-                            if (
-                                steps[idx - 1].type === 'EMAIL_CONTENT' &&
-                                steps[idx?.type] === 'END_DATA'
-                            ) {
-                                client.write(JSON.stringify(steps[idx++]) + '\n')
-                            }
+                            const msg = steps[idx++]
+                            console.log(
+                                '[sendEmailToRemoteServer] send␊',
+                                JSON.stringify(msg)
+                            )
+                            client.write(JSON.stringify(msg) + '\n')
                         }
                     }
                 }
             })
 
-            client.on('error', e => reject(new Error(e.message)))
-            client.write(JSON.stringify(steps[idx++]) + '\n')
-        })
-
-        client.on('error', e => {
-            clearTimeout(timeout)
-            reject(new Error(e.message))
+            // kick-off
+            const first = steps[idx++]
+            console.log(
+                '[sendEmailToRemoteServer] send␊',
+                JSON.stringify(first)
+            )
+            client.write(JSON.stringify(first) + '\n')
         })
     })
 }
+
 
 const app = express()
 app.use(cors(), express.json())
