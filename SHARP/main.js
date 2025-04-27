@@ -208,11 +208,13 @@ async function sendEmailToRemoteServer(email) {
                         }
                         if (idx < steps.length) {
                             const msg = steps[idx++]
-                            console.log(
-                                '[sendEmailToRemoteServer] send␊',
-                                JSON.stringify(msg)
-                            )
+                            console.log('[sendEmailToRemoteServer] send␊', JSON.stringify(msg))
                             client.write(JSON.stringify(msg) + '\n')
+                            if (msg.type === 'EMAIL_CONTENT') {
+                                const endMsg = steps[idx++]
+                                console.log('[sendEmailToRemoteServer] send␊', JSON.stringify(endMsg))
+                                client.write(JSON.stringify(endMsg) + '\n')
+                            }
                         }
                     }
                 }
