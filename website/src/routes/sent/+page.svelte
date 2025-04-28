@@ -4,4 +4,4 @@
 	let { data } = $props();
 </script>
 
-<EmailList emails={data.emails} showStatus={true} />
+<EmailList emails={data.emails} showStatus={true} showRecipient={true} />

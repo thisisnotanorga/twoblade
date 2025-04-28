@@ -16,9 +16,10 @@
 		emails: Email[];
 		showStatus?: boolean;
 		showUnsnooze?: boolean;
+		showRecipient?: boolean;
 	}>();
 
-	let { emails: initialEmails, showStatus = false, showUnsnooze = false } = props;
+	let { emails: initialEmails, showStatus = false, showUnsnooze = false, showRecipient = false } = props;
 	let emails = $state(initialEmails);
 
 	let selectedEmail: Email | null = $state(null);
@@ -228,7 +229,7 @@
 									</div>
 									<div class="ml-3 flex min-w-0 flex-1 items-center space-x-3">
 										<span class="max-w-[200px] truncate font-medium {isReceiver(email) && !email.read_at ? 'font-bold' : ''}">
-											{email.from_address}
+												{showRecipient ? email.to_address : email.from_address}
 										</span>
 										<div class="flex-1 truncate">
 											<span class="mr-1 {isReceiver(email) && !email.read_at ? 'font-bold' : ''}">{email.subject}</span>
