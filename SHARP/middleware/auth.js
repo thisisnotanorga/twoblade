@@ -1,4 +1,4 @@
-import { sql } from '../db.js';
+import { sql } from '../../website/src/lib/db';
 import { jwtVerify } from 'jose';
 
 const secret = new TextEncoder().encode(process.env.JWT_SECRET);
