@@ -28,9 +28,9 @@ const PROTOCOL_VERSION = 'SHARP/1.0'
 
 const verifyUser = (u, d) =>
     sql`SELECT * FROM users WHERE username=${u} AND domain=${d}`.then(r => r[0])
-const logEmail = (fa, fd, ta, td, s, b, ct = 'text/plain', hb = null, st = 'pending') =>
-    sql`INSERT INTO emails (from_address, from_domain, to_address, to_domain, subject, body, content_type, html_body, status) 
-        VALUES (${fa}, ${fd}, ${ta}, ${td}, ${s}, ${b}, ${ct}, ${hb}, ${st}) RETURNING id`
+const logEmail = (fa, fd, ta, td, s, b, ct = 'text/plain', hb = null, st = 'pending', sa = null) =>
+    sql`INSERT INTO emails (from_address, from_domain, to_address, to_domain, subject, body, content_type, html_body, status, scheduled_at) 
+        VALUES (${fa}, ${fd}, ${ta}, ${td}, ${s}, ${b}, ${ct}, ${hb}, ${st}, ${sa}) RETURNING id`
 
 const parseSharpAddress = a => {
     const m = a.match(/^(.+)#([^:]+)(?::(\d+))?$/)
@@ -250,16 +250,20 @@ async function processScheduledEmails() {
     try {
         const emails = await sql`
             SELECT * FROM emails 
-            WHERE status = 'pending'
+            WHERE status = 'scheduled'
             AND scheduled_at IS NOT NULL
             AND scheduled_at <= CURRENT_TIMESTAMP
+            ORDER BY scheduled_at ASC
+            LIMIT 10
         `;
 
         for (const email of emails) {
+            console.log(`Processing scheduled email ID ${email.id} scheduled for ${email.scheduled_at}`);
+            
             await sql`
                 UPDATE emails 
                 SET status = 'sending',
-                    scheduled_at = NULL
+                    sent_at = NOW()
                 WHERE id = ${email.id}
             `;
 
@@ -267,10 +271,12 @@ async function processScheduledEmails() {
                 await sendEmailToRemoteServer(email);
                 await sql`
                     UPDATE emails 
-                    SET status = 'sent' 
+                    SET status = 'sent'
                     WHERE id = ${email.id}
                 `;
+                console.log(`Successfully sent scheduled email ID ${email.id}`);
             } catch (error) {
+                console.error(`Failed to send scheduled email ID ${email.id}:`, error);
                 await sql`
                     UPDATE emails 
                     SET status = 'failed',
@@ -297,10 +303,10 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
         const fp_ = parseSharpAddress(from);
         const tp_ = parseSharpAddress(to);
 
-        // If scheduled, just save with pending status
+        // If scheduled, save with scheduled status
         if (scheduled_at) {
-            await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'pending');
-            return res.json({ success: true, scheduled: true });
+            logEntry = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'scheduled', scheduled_at);
+            return res.json({ success: true, scheduled: true, id: logEntry[0]?.id });
         }
 
         // Local delivery: insert once with status 'sent' and return immediately
