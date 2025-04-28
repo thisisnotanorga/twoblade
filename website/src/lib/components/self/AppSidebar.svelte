@@ -18,11 +18,14 @@
 		MessagesSquare,
 		Tag,
 		ArrowDown,
-		ArrowUp
+		ArrowUp,
+		PenSquare
 	} from 'lucide-svelte';
 	import { mode, setMode } from 'mode-watcher';
 	import type { HTMLAttributes } from 'svelte/elements';
 	import { currentTab } from '$lib/stores/navigation';
+	import Button from '../ui/button/button.svelte';
+	import ComposeEmail from '$lib/components/self/ComposeEmail.svelte';
 
 	const data = {
 		navMain: [
@@ -46,6 +49,7 @@
 		]
 	};
 	let isExpanded = $state(false);
+	let showCompose = $state(false);
 	type MenuButtonProps = HTMLAttributes<HTMLAnchorElement | HTMLButtonElement>;
 
 	function handleNavClick(title: string) {
@@ -53,9 +57,11 @@
 	}
 
 	$effect(() => {
-		console.log($currentTab)
-	})
+		console.log($currentTab);
+	});
 </script>
+
+<ComposeEmail isOpen={showCompose} />
 
 <Sidebar.Root collapsible="offcanvas" variant="inset">
 	<Sidebar.Header>
@@ -67,9 +73,21 @@
 
 	<Sidebar.Content>
 		<Sidebar.Group>
-			<Sidebar.GroupLabel>Main Navigation</Sidebar.GroupLabel>
 			<Sidebar.GroupContent>
 				<Sidebar.Menu>
+					<Sidebar.MenuItem>
+						<Sidebar.MenuButton>
+							{#snippet child({ props }: { props: MenuButtonProps })}
+								 <Button 
+									onclick={() => showCompose = true} 
+									class={`h-[3.0rem] w-36 mb-4`}
+								>
+									<PenSquare />
+									<span>Compose</span>
+								</Button>
+							{/snippet}
+						</Sidebar.MenuButton>
+					</Sidebar.MenuItem>
 					{#each data.navMain as item}
 						<Sidebar.MenuItem>
 							<Sidebar.MenuButton>
@@ -136,11 +154,7 @@
 							<Sidebar.MenuItem>
 								<Sidebar.MenuButton>
 									{#snippet child({ props }: { props: MenuButtonProps })}
-										<a
-											href={item.url || '/'}
-											onclick={() => handleNavClick(item.title)}
-											{...props}
-										>
+										<a href={item.url || '/'} onclick={() => handleNavClick(item.title)} {...props}>
 											<item.icon />
 											<span>{item.title}</span>
 										</a>
