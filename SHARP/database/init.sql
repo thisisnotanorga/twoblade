@@ -58,7 +58,10 @@ CREATE TABLE
         snooze_until TIMESTAMP
         WITH
             TIME ZONE DEFAULT NULL,
-            read_at TIMESTAMP
+        read_at TIMESTAMP
+        WITH
+            TIME ZONE DEFAULT NULL,
+        scheduled_at TIMESTAMP
         WITH
             TIME ZONE DEFAULT NULL
     );
@@ -93,7 +96,7 @@ CREATE TABLE
         created_at TIMESTAMP
         WITH
             TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP
+        updated_at TIMESTAMP
         WITH
             TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );

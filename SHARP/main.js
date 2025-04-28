@@ -246,6 +246,46 @@ async function sendEmailToRemoteServer(email) {
     })
 }
 
+async function processScheduledEmails() {
+    try {
+        const emails = await sql`
+            SELECT * FROM emails 
+            WHERE status = 'pending'
+            AND scheduled_at IS NOT NULL
+            AND scheduled_at <= CURRENT_TIMESTAMP
+        `;
+
+        for (const email of emails) {
+            await sql`
+                UPDATE emails 
+                SET status = 'sending',
+                    scheduled_at = NULL
+                WHERE id = ${email.id}
+            `;
+
+            try {
+                await sendEmailToRemoteServer(email);
+                await sql`
+                    UPDATE emails 
+                    SET status = 'sent' 
+                    WHERE id = ${email.id}
+                `;
+            } catch (error) {
+                await sql`
+                    UPDATE emails 
+                    SET status = 'failed',
+                        error_message = ${error.message}
+                    WHERE id = ${email.id}
+                `;
+            }
+        }
+    } catch (error) {
+        console.error('Error processing scheduled emails:', error);
+    }
+}
+
+processScheduledEmails();
+setInterval(processScheduledEmails, 60000);
 
 const app = express()
 app.use(cors(), express.json())
@@ -253,9 +293,15 @@ app.use(cors(), express.json())
 app.post('/api/send', validateAuthToken, async (req, res) => {
     let logEntry;
     try {
-        const { from, to, subject, body, content_type = 'text/plain', html_body } = req.body;
+        const { from, to, subject, body, content_type = 'text/plain', html_body, scheduled_at } = req.body;
         const fp_ = parseSharpAddress(from);
         const tp_ = parseSharpAddress(to);
+
+        // If scheduled, just save with pending status
+        if (scheduled_at) {
+            await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'pending');
+            return res.json({ success: true, scheduled: true });
+        }
 
         // Local delivery: insert once with status 'sent' and return immediately
         if (tp_.domain === DOMAIN) {
