@@ -11,14 +11,19 @@ export const load: PageServerLoad = async ({ locals }) => {
     const userEmail = `${locals.user.username}#${locals.user.domain}`;
 
     const emails: Email[] = await sql`
-        SELECT * FROM emails 
-        WHERE to_address = ${userEmail}
-        AND status = 'sent'
+        SELECT e.*, EXISTS(
+            SELECT 1 FROM email_stars es 
+            WHERE es.email_id = e.id 
+            AND es.user_email = ${userEmail}
+        ) as starred
+        FROM emails e 
+        WHERE e.to_address = ${userEmail}
+        AND e.status = 'sent'
         AND (
-            snooze_until IS NULL 
-            OR snooze_until <= CURRENT_TIMESTAMP
+            e.snooze_until IS NULL 
+            OR e.snooze_until <= CURRENT_TIMESTAMP
         )
-        ORDER BY sent_at DESC 
+        ORDER BY e.sent_at DESC 
         LIMIT 100
     `;
 

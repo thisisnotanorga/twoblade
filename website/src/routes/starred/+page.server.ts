@@ -11,10 +11,16 @@ export const load: PageServerLoad = async ({ locals }) => {
     const userEmail = `${locals.user.username}#${locals.user.domain}`;
 
     const emails: Email[] = await sql`
-        SELECT * FROM emails 
-        WHERE (to_address = ${userEmail} OR from_address = ${userEmail})
-        AND starred = true
-        ORDER BY sent_at DESC 
+        SELECT e.*, EXISTS(
+            SELECT 1 FROM email_stars es 
+            WHERE es.email_id = e.id 
+            AND es.user_email = ${userEmail}
+        ) as starred
+        FROM emails e
+        INNER JOIN email_stars es ON e.id = es.email_id
+        WHERE es.user_email = ${userEmail}
+        AND (e.to_address = ${userEmail} OR e.from_address = ${userEmail})
+        ORDER BY e.sent_at DESC 
         LIMIT 100
     `;
 

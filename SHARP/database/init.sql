@@ -57,8 +57,7 @@ CREATE TABLE
         status email_status DEFAULT 'pending',
         snooze_until TIMESTAMP
         WITH
-            TIME ZONE DEFAULT NULL,
-        starred BOOLEAN DEFAULT FALSE
+            TIME ZONE DEFAULT NULL
     );
 
 CREATE INDEX idx_emails_from ON emails (from_address);
@@ -66,3 +65,13 @@ CREATE INDEX idx_emails_from ON emails (from_address);
 CREATE INDEX idx_emails_to ON emails (to_address);
 
 CREATE INDEX idx_emails_status ON emails (status);
+
+CREATE TABLE
+    email_stars (
+        email_id INTEGER REFERENCES emails(id) ON DELETE CASCADE,
+        user_email VARCHAR(255) NOT NULL,
+        starred_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (email_id, user_email)
+    );
+
+CREATE INDEX idx_email_stars_user ON email_stars(user_email);
