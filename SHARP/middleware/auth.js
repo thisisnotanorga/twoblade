@@ -1,6 +1,7 @@
-import { sql } from '../../website/src/lib/db';
+import postgres from 'postgres';
 import { jwtVerify } from 'jose';
 
+export const sql = postgres(process.env.DATABASE_URL);
 const secret = new TextEncoder().encode(process.env.JWT_SECRET);
 const alg = 'HS256';
 
