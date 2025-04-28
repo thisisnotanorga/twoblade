@@ -249,55 +249,68 @@ async function sendEmailToRemoteServer(email) {
 async function processScheduledEmails() {
     try {
         const emails = await sql`
-            SELECT * FROM emails 
-            WHERE status = 'scheduled'
-            AND scheduled_at IS NOT NULL
-            AND scheduled_at <= CURRENT_TIMESTAMP
-            ORDER BY scheduled_at ASC
-            LIMIT 10
-        `;
-
+        SELECT * FROM emails 
+        WHERE status = 'scheduled'
+          AND scheduled_at IS NOT NULL
+          AND scheduled_at <= CURRENT_TIMESTAMP
+        ORDER BY scheduled_at ASC
+        LIMIT 10
+      `;
         for (const email of emails) {
             console.log(`Processing scheduled email ID ${email.id} scheduled for ${email.scheduled_at}`);
-            
             await sql`
-                UPDATE emails 
-                SET status = 'sending',
-                    sent_at = NOW()
-                WHERE id = ${email.id}
-            `;
-
+          UPDATE emails
+          SET status = 'sending',
+              sent_at = NOW()
+          WHERE id = ${email.id}
+        `;
+            const to = parseSharpAddress(email.to_address);
+            if (to.domain === DOMAIN) {
+                await sql`
+            UPDATE emails
+            SET status = 'sent'
+            WHERE id = ${email.id}
+          `;
+                console.log(
+                    `Locally delivered scheduled email ID ${email.id}`
+                );
+                continue;
+            }
             try {
-                const emailToSend = {
+                await sendEmailToRemoteServer({
                     from: email.from_address,
                     to: email.to_address,
                     subject: email.subject,
                     body: email.body,
                     content_type: email.content_type,
                     html_body: email.html_body
-                };
-                
-                await sendEmailToRemoteServer(emailToSend);
+                });
                 await sql`
-                    UPDATE emails 
-                    SET status = 'sent'
-                    WHERE id = ${email.id}
-                `;
-                console.log(`Successfully sent scheduled email ID ${email.id}`);
+            UPDATE emails
+            SET status = 'sent'
+            WHERE id = ${email.id}
+          `;
+                console.log(
+                    `Successfully sent scheduled email ID ${email.id}`
+                );
             } catch (error) {
-                console.error(`Failed to send scheduled email ID ${email.id}:`, error);
+                console.error(
+                    `Failed to send scheduled email ID ${email.id}:`,
+                    error
+                );
                 await sql`
-                    UPDATE emails 
-                    SET status = 'failed',
-                        error_message = ${error.message}
-                    WHERE id = ${email.id}
-                `;
+            UPDATE emails
+            SET status = 'failed',
+                error_message = ${error.message}
+            WHERE id = ${email.id}
+          `;
             }
         }
     } catch (error) {
         console.error('Error processing scheduled emails:', error);
     }
 }
+
 
 processScheduledEmails();
 setInterval(processScheduledEmails, 60000);
