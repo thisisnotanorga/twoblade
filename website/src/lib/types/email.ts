@@ -15,6 +15,7 @@ export interface Email {
     starred: boolean;
     content_type: EmailContentType;
     html_body: string | null;
+    read_at: string | null;
 }
 
 export interface Draft {

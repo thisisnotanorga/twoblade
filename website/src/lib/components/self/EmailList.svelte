@@ -10,6 +10,7 @@
 	import UnsnoozeButton from './UnsnoozeButton.svelte';
 	import TimeUntil from '$lib/components/self/TimeUntil.svelte';
 	import { toast } from 'svelte-sonner';
+	import { USER_DATA } from '$lib/stores/user';
 
 	let props = $props<{
 		emails: Email[];
@@ -23,6 +24,10 @@
 	let selectedEmail: Email | null = $state(null);
 	let selectedEmails = $state<Set<string>>(new Set());
 	let starredEmails = $state<Set<string>>(new Set());
+
+	let isReceiver = $derived((email: Email) => 
+		email.to_address === $USER_DATA?.username + '#' + $USER_DATA?.domain
+	);
 
 	$effect(() => {
 		console.log(selectedEmail);
@@ -73,6 +78,30 @@
 		} catch (error) {
 			toast.error('Failed to update star status');
 		}
+	}
+
+	async function handleEmailSelect(email: Email) {
+		if (isReceiver(email) && !email.read_at) {
+			try {
+				const response = await fetch('/api/emails/read', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ emailId: email.id })
+				});
+
+				if (response.ok) {
+					// update the email's read status in our local state
+					emails = emails.map((e: Email) => 
+						e.id === email.id 
+							? { ...e, read_at: new Date().toISOString() }
+							: e
+					);
+				}
+			} catch (error) {
+				console.error('Failed to mark email as read:', error);
+			}
+		}
+		selectedEmail = email;
 	}
 
 	function handleKeyDown(event: KeyboardEvent, email: Email) {
@@ -128,7 +157,7 @@
 									selectedEmails.has(email.id) ? 'bg-accent text-accent-foreground' : ''
 								} ${selectedEmail?.id === email.id ? 'bg-accent text-accent-foreground' : ''}`}
 								aria-label={`Email from ${email.from_address} with subject ${email.subject}`}
-								onclick={() => (selectedEmail = email)}
+								onclick={() => handleEmailSelect(email)}
 								onkeydown={(e) => handleKeyDown(e, email)}
 							>
 								<div class="flex w-full items-center">
@@ -189,11 +218,11 @@
 										</span>
 									</div>
 									<div class="ml-3 flex min-w-0 flex-1 items-center space-x-3">
-										<span class="max-w-[200px] truncate font-medium">
+										<span class="max-w-[200px] truncate font-medium {isReceiver(email) && !email.read_at ? 'font-bold' : ''}">
 											{email.from_address}
 										</span>
 										<div class="flex-1 truncate">
-											<span class="mr-1">{email.subject}</span>
+											<span class="mr-1 {isReceiver(email) && !email.read_at ? 'font-bold' : ''}">{email.subject}</span>
 											<span class="text-muted-foreground">- {email.body}</span>
 										</div>
 										<span class="flex-shrink-0 whitespace-nowrap text-xs/snug">

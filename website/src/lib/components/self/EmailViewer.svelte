@@ -1,5 +1,8 @@
 <script lang="ts">
-	import { X } from 'lucide-svelte';
+	import { Badge } from '$lib/components/ui/badge';
+	import { Button } from '$lib/components/ui/button';
+	import { X, ArrowDownLeft, ArrowUpRight, ClockIcon, CheckCheck } from 'lucide-svelte';
+	import { USER_DATA } from '$lib/stores/user';
 	import type { Email } from '$lib/types/email';
 	import {
 		ALLOWED_HTML_TAGS,
@@ -14,6 +17,8 @@
 		email: Email | null;
 		onClose: () => void;
 	}>();
+
+	let isReceiver = $derived(email?.to_address === $USER_DATA?.username + '#' + $USER_DATA?.domain);
 
 	const sanitizeConfig: Config = {
 		ALLOWED_TAGS: [...ALLOWED_HTML_TAGS],
@@ -40,6 +45,18 @@
 			return sanitized;
 		}
 		return email.body || '';
+	}
+
+	async function markAsRead(emailId: string) {
+		try {
+			await fetch('/api/emails/read', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ emailId })
+			});
+		} catch (error) {
+			console.error('Failed to mark email as read:', error);
+		}
 	}
 
 	$effect(() => {
@@ -118,33 +135,70 @@
 				}
 			);
 		}
+
+		if (email && !email.read_at) {
+			markAsRead(email.id);
+		}
 	});
+
+	function formatDate(date: string | null) {
+		if (!date) return '';
+		return new Date(date).toLocaleString([], {
+			weekday: 'long',
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit'
+		});
+	}
+
+	type BadgeVariant = 'outline' | 'default' | 'secondary' | 'destructive';
+	function getFromToBadgeContent(email: Email): { icon: any; label: string; value: string; variant: BadgeVariant } {
+		const isSender = email.from_address === $USER_DATA?.username + '#' + $USER_DATA?.domain;
+		return {
+			icon: isSender ? ArrowUpRight : ArrowDownLeft,
+			label: isSender ? 'To' : 'From',
+			value: isSender ? email.to_address : email.from_address,
+			variant: isSender ? 'outline' : 'default'
+		};
+	}
 </script>
 
 {#if email}
-	<div class="bg-background flex h-[calc(100vh-6rem)] flex-col p-6">
-		<div class="mb-6 flex items-center justify-between">
-			<h2 class="text-2xl font-bold">{email.subject}</h2>
-			<button onclick={onClose} class="hover:bg-accent rounded-full p-2" aria-label="Close email">
-				<X class="h-5 w-5" />
-			</button>
+	{@const badge = getFromToBadgeContent(email)}
+
+	<div class="flex h-full flex-col">
+		<div class="flex items-center justify-between border-b p-4">
+			<div class="space-y-1">
+				<h2 class="text-xl font-semibold">{email.subject || 'No subject'}</h2>
+				<div class="flex flex-wrap items-center gap-2">
+					<Badge variant={badge.variant} class="flex items-center gap-1.5">
+						<svelte:component this={badge.icon} class="h-3.5 w-3.5" />
+						{badge.label} <span class="font-medium">{badge.value}</span>
+					</Badge>
+					<Badge variant="secondary" class="flex items-center gap-1.5">
+						<ClockIcon class="h-3.5 w-3.5" />
+						Sent {formatDate(email.sent_at)}
+					</Badge>
+					{#if !isReceiver && email.read_at}
+						<Badge variant="secondary" class="flex items-center gap-1.5">
+							<CheckCheck class="h-3.5 w-3.5" />
+							Seen {formatDate(email.read_at)}
+						</Badge>
+					{/if}
+				</div>
+			</div>
+			<Button variant="ghost" size="icon" onclick={onClose} class="ml-auto">
+				<X class="h-4 w-4" />
+			</Button>
 		</div>
 
-		<div class="mb-4">
-			<div class="text-muted-foreground text-sm">From:</div>
-			<div class="font-medium">{email.from_address}</div>
-		</div>
-
-		<div class="mb-6">
-			<div class="text-muted-foreground text-sm">Sent:</div>
-			<div>{new Date(email.sent_at).toLocaleString()}</div>
-		</div>
-
-		<div class="prose max-w-5xl flex-1 px-4">
-			{#if email.content_type === 'text/html' && email.html_body}
+		<div class="flex-1 overflow-auto p-4">
+			{#if email.content_type === 'text/html'}
 				{@html getSanitizedContent(email, mode.current ?? 'light')}
 			{:else}
-				<p class="whitespace-pre-wrap">{email.body}</p>
+				<div class="whitespace-pre-wrap">{email.body || ''}</div>
 			{/if}
 		</div>
 	</div>
@@ -155,6 +209,10 @@
 {/if}
 
 <style>
+	:global(.badge-row) {
+		@apply text-muted-foreground flex flex-wrap items-center gap-2 text-sm;
+	}
+
 	:global(.prose table) {
 		width: 100%;
 		border-collapse: collapse;
