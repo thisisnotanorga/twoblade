@@ -3,6 +3,7 @@ import net from 'net'
 import cors from 'cors'
 import postgres from 'postgres'
 import dns from 'dns/promises'
+import { validateAuthToken } from './middleware/auth.js';
 
 const SHARP_PORT = +process.env.SHARP_PORT || 5000
 const HTTP_PORT = +process.env.HTTP_PORT || SHARP_PORT + 1
@@ -235,10 +236,20 @@ async function sendEmailToRemoteServer(email) {
 const app = express()
 app.use(cors(), express.json())
 
-app.post('/api/send', async (req, res) => {
+app.post('/api/send', validateAuthToken, async (req, res) => {
     let logEntry
     try {
         const { from, to, subject, body, content_type = 'text/plain', html_body } = req.body
+
+        // validate that the sender matches the authenticated user
+        const fromAddress = parseSharpAddress(from);
+        if (fromAddress.username !== req.user.username || fromAddress.domain !== req.user.domain) {
+            return res.status(403).json({
+                success: false,
+                message: 'You can only send emails from your own address'
+            });
+        }
+
         console.log('Received email request:', { from, to, subject, content_type });
 
         const fp = parseSharpAddress(from)

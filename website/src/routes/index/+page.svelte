@@ -57,88 +57,94 @@
 		<Resizable.Pane minSize={25} maxSize={80}>
 			<ScrollArea class="h-full w-full">
 				<div class="flex flex-col gap-1 px-4 py-4 md:px-6">
-					{#each data.emails as email (email.id)}
-						<button
-							type="button"
-							class={`hover:bg-accent hover:text-accent-foreground flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-colors ${
-								selectedEmails.has(email.id) ? 'bg-accent text-accent-foreground' : ''
-							} ${selectedEmail?.id === email.id ? 'bg-accent text-accent-foreground' : ''}`}
-							aria-label={`Email from ${email.from_address} with subject ${email.subject}`}
-							onclick={() => (selectedEmail = email)}
-							onkeydown={(e) => handleKeyDown(e, email)}
-						>
-							<div class="flex w-full items-center">
-								<div class="flex items-center space-x-1">
-									<span
-										class="hover:bg-primary/10 group rounded-full p-1.5 transition-colors"
-										role="checkbox"
-										aria-checked={selectedEmails.has(email.id)}
-										tabindex="0"
-										onclick={(e) => {
-											e.stopPropagation();
-											toggleSelect(email.id);
-										}}
-										onkeydown={(e) => {
-											if (e.key === 'Enter' || e.key === ' ') {
-												e.preventDefault();
+					{#if data.emails.length === 0}
+						<div class="flex h-32 items-center justify-center text-muted-foreground">
+							<p>No emails yet</p>
+						</div>
+					{:else}
+						{#each data.emails as email (email.id)}
+							<button
+								type="button"
+								class={`hover:bg-accent hover:text-accent-foreground flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-colors ${
+									selectedEmails.has(email.id) ? 'bg-accent text-accent-foreground' : ''
+								} ${selectedEmail?.id === email.id ? 'bg-accent text-accent-foreground' : ''}`}
+								aria-label={`Email from ${email.from_address} with subject ${email.subject}`}
+								onclick={() => (selectedEmail = email)}
+								onkeydown={(e) => handleKeyDown(e, email)}
+							>
+								<div class="flex w-full items-center">
+									<div class="flex items-center space-x-1">
+										<span
+											class="hover:bg-primary/10 group rounded-full p-1.5 transition-colors"
+											role="checkbox"
+											aria-checked={selectedEmails.has(email.id)}
+											tabindex="0"
+											onclick={(e) => {
 												e.stopPropagation();
 												toggleSelect(email.id);
-											}
-										}}
-									>
-										{#if selectedEmails.has(email.id)}
-											<div in:scale|fade={{ duration: 150 }}>
-												<CheckSquare class="text-primary h-5 w-5" />
-											</div>
-										{:else}
-											<div in:scale|fade={{ duration: 150 }}>
-												<Square class="group-hover:text-primary h-5 w-5 text-gray-400" />
-											</div>
-										{/if}
-									</span>
-									<span
-										class="group rounded-full p-1.5 transition-colors ease-in-out hover:bg-yellow-400/10"
-										role="button"
-										aria-pressed={starredEmails.has(email.id)}
-										tabindex="0"
-										onclick={(e) => {
-											e.stopPropagation();
-											toggleStar(email.id);
-										}}
-										onkeydown={(e) => {
-											if (e.key === 'Enter' || e.key === ' ') {
-												e.preventDefault();
+											}}
+											onkeydown={(e) => {
+												if (e.key === 'Enter' || e.key === ' ') {
+													e.preventDefault();
+													e.stopPropagation();
+													toggleSelect(email.id);
+												}
+											}}
+										>
+											{#if selectedEmails.has(email.id)}
+												<div in:scale|fade={{ duration: 150 }}>
+													<CheckSquare class="text-primary h-5 w-5" />
+												</div>
+											{:else}
+												<div in:scale|fade={{ duration: 150 }}>
+													<Square class="group-hover:text-primary h-5 w-5 text-gray-400" />
+												</div>
+											{/if}
+										</span>
+										<span
+											class="group rounded-full p-1.5 transition-colors ease-in-out hover:bg-yellow-400/10"
+											role="button"
+											aria-pressed={starredEmails.has(email.id)}
+											tabindex="0"
+											onclick={(e) => {
 												e.stopPropagation();
 												toggleStar(email.id);
-											}
-										}}
-									>
-										{#if starredEmails.has(email.id)}
-											<div in:scale|fade={{ duration: 150 }}>
-												<Star class="h-5 w-5 text-yellow-500" filled={true} />
-											</div>
-										{:else}
-											<div in:scale|fade={{ duration: 150 }}>
-												<Star class="group-hover:text-red-40 h-5 w-5 text-gray-400" />
-											</div>
-										{/if}
-									</span>
+											}}
+											onkeydown={(e) => {
+												if (e.key === 'Enter' || e.key === ' ') {
+													e.preventDefault();
+													e.stopPropagation();
+													toggleStar(email.id);
+												}
+											}}
+										>
+											{#if starredEmails.has(email.id)}
+												<div in:scale|fade={{ duration: 150 }}>
+													<Star class="h-5 w-5 text-yellow-500" filled={true} />
+												</div>
+											{:else}
+												<div in:scale|fade={{ duration: 150 }}>
+													<Star class="group-hover:text-red-40 h-5 w-5 text-gray-400" />
+												</div>
+											{/if}
+										</span>
+									</div>
+									<div class="ml-3 flex flex-1 items-center space-x-3 min-w-0">
+										<span class="max-w-[200px] truncate font-medium">
+											{email.from_address}
+										</span>
+										<div class="flex-1 truncate">
+											<span class="mr-1">{email.subject}</span>
+											<span class="text-muted-foreground">- {email.body}</span>
+										</div>
+										<span class="flex-shrink-0 whitespace-nowrap text-xs/snug">
+											{formatDate(email.sent_at)}
+										</span>
+									</div>
 								</div>
-								<div class="ml-3 flex flex-1 items-center space-x-3 min-w-0">
-                                    <span class="max-w-[200px] truncate font-medium">
-                                        {email.from_address}
-                                    </span>
-                                    <div class="flex-1 truncate">
-                                        <span class="mr-1">{email.subject}</span>
-                                        <span class="text-muted-foreground">- {email.body}</span>
-                                    </div>
-                                    <span class="flex-shrink-0 whitespace-nowrap text-xs/snug">
-                                        {formatDate(email.sent_at)}
-                                    </span>
-                                </div>
-							</div>
-						</button>
-					{/each}
+							</button>
+						{/each}
+					{/if}
 				</div>
 			</ScrollArea>
 		</Resizable.Pane>
