@@ -1,7 +1,6 @@
 <script lang="ts">
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import {
-		ArrowUpCircle,
 		Moon,
 		Sun,
 		Inbox,
@@ -55,10 +54,6 @@
 	function handleNavClick(title: string) {
 		$currentTab = title;
 	}
-
-	$effect(() => {
-		console.log($currentTab);
-	});
 </script>
 
 <ComposeEmail isOpen={showCompose} />
@@ -77,7 +72,7 @@
 				<Sidebar.Menu>
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton>
-							{#snippet child({ props }: { props: MenuButtonProps })}
+							{#snippet child()}
 								 <Button 
 									onclick={() => showCompose = true} 
 									class={`h-[3.0rem] w-36 mb-4`}
@@ -166,8 +161,8 @@
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton>
 							{#snippet child({ props }: { props: MenuButtonProps })}
-								<button onclick={() => setMode($mode === 'light' ? 'dark' : 'light')} {...props}>
-									{#if $mode === 'light'}
+								<button onclick={() => setMode(mode.current === 'light' ? 'dark' : 'light')} {...props}>
+									{#if mode.current === 'light'}
 										<Moon class="h-5 w-5" />
 										<span>Dark Mode</span>
 									{:else}

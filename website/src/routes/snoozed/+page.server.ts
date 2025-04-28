@@ -14,15 +14,10 @@ export const load: PageServerLoad = async ({ locals }) => {
         SELECT * FROM emails 
         WHERE to_address = ${userEmail}
         AND status = 'sent'
-        AND (
-            snooze_until IS NULL 
-            OR snooze_until <= CURRENT_TIMESTAMP
-        )
-        ORDER BY sent_at DESC 
+        AND snooze_until > CURRENT_TIMESTAMP
+        ORDER BY snooze_until ASC
         LIMIT 100
     `;
 
-    return {
-        emails
-    };
+    return { emails };
 };

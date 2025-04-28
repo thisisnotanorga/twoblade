@@ -4,6 +4,7 @@
 	import AppSidebar from '$lib/components/self/AppSidebar.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar/index.js';
 	import { Separator } from '$lib/components/ui/separator';
+	import { Toaster } from '$lib/components/ui/sonner';
 	import { currentTab } from '$lib/stores/navigation';
 	import { USER_DATA } from '$lib/stores/user';
 	import { page } from '$app/state';
@@ -18,6 +19,8 @@
 </script>
 
 <ModeWatcher />
+<Toaster />
+
 <Sidebar.Provider>
 	{#if !isAuthRoute}
 		<AppSidebar />

@@ -1,6 +1,9 @@
 DROP TABLE IF EXISTS emails;
+
 DROP TABLE IF EXISTS user_secret_codes;
+
 DROP TABLE IF EXISTS users;
+
 DROP TYPE IF EXISTS email_status;
 
 CREATE TYPE email_status AS ENUM (
@@ -27,14 +30,16 @@ CREATE INDEX idx_users_username ON users (username);
 
 CREATE TABLE
     user_secret_codes (
-        code VARCHAR(64) PRIMARY KEY, -- Unique code is the primary key
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        ip VARCHAR(48), -- Store IP address associated with the session
-        user_agent TEXT -- Store user agent associated with the session
+        code VARCHAR(64) PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+        created_at TIMESTAMP
+        WITH
+            TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            ip VARCHAR(48),
+            user_agent TEXT
     );
 
-CREATE INDEX idx_user_secret_codes_user_id ON user_secret_codes(user_id);
+CREATE INDEX idx_user_secret_codes_user_id ON user_secret_codes (user_id);
 
 CREATE TABLE
     emails (
@@ -49,7 +54,10 @@ CREATE TABLE
         html_body TEXT,
         sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         error_message TEXT DEFAULT NULL,
-        status email_status DEFAULT 'pending'
+        status email_status DEFAULT 'pending',
+        snooze_until TIMESTAMP
+        WITH
+            TIME ZONE DEFAULT NULL
     );
 
 CREATE INDEX idx_emails_from ON emails (from_address);

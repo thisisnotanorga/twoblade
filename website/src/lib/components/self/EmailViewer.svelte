@@ -22,28 +22,21 @@
 			/^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
 	};
 
-	// Regex to find theme placeholders like {$LIGHT ? lightVal : darkVal}
 	const themePlaceholderRegex = /\{\s*\$LIGHT\s*\?\s*([^:]+?)\s*:\s*([^}]+?)\s*\}/g;
 
 	function processThemeStyles(html: string, currentMode: 'light' | 'dark'): string {
-		console.log(`[processThemeStyles] Input HTML for theme processing:`, JSON.stringify(html)); // Log input
 		const result = html.replace(themePlaceholderRegex, (match, lightValue, darkValue) => {
 			const replacement = currentMode === 'light' ? lightValue.trim() : darkValue.trim();
-			console.log(`[processThemeStyles] Match: "${match}", Light: "${lightValue}", Dark: "${darkValue}", Mode: "${currentMode}", Replacing with: "${replacement}"`); // Log replacement details
 			return replacement;
 		});
-		console.log(`[processThemeStyles] Output HTML after theme processing:`, JSON.stringify(result)); // Log output
 		return result;
 	}
 
 	function getSanitizedContent(email: Email | null, currentMode: 'light' | 'dark'): string {
 		if (!email) return '';
 		if (email.content_type === 'text/html' && email.html_body) {
-			// Process theme styles *before* sanitizing
 			const processedHtml = processThemeStyles(email.html_body, currentMode);
-			console.log(`[getSanitizedContent] HTML being passed to DOMPurify:`, JSON.stringify(processedHtml)); // Log input to sanitize
 			const sanitized = DOMPurify.sanitize(processedHtml, sanitizeConfig);
-			console.log(`[getSanitizedContent] HTML after DOMPurify:`, JSON.stringify(sanitized)); // Log output from sanitize
 			return sanitized;
 		}
 		return email.body || '';
@@ -67,7 +60,7 @@
 						});
 					} else if (data.tagName !== '*' && node.attributes) {
 						// Remove all attributes if tag is not '*' and has no specific allowed attributes
-						Array.from(node.attributes).forEach(attr => node.removeAttribute(attr.name));
+						Array.from(node.attributes).forEach((attr) => node.removeAttribute(attr.name));
 					}
 				}
 			);
@@ -96,18 +89,23 @@
 										// Set a reasonable max limit for pixels, allow others?
 										if (unit === 'px') {
 											const clampedNum = Math.min(Math.max(0, num), 20); // Clamp between 0 and 20px for borders
-                                            console.log(`[Sanitize Style] Clamping border px value: ${num}px -> ${clampedNum}px`);
+											console.log(
+												`[Sanitize Style] Clamping border px value: ${num}px -> ${clampedNum}px`
+											);
 											return `${clampedNum}px`;
 										}
 										// Keep other valid units as is for now
 										return `${num}${unit}`;
 									});
-                                    // Basic color validation (ensure it's hex, rgb, or known color) - very basic
-                                    value = value.replace(/#[0-9a-fA-F]{3,6}|rgba?\([^)]+\)|[a-zA-Z]+/g, (colorMatch) => {
-                                        // This is a placeholder - real color validation is complex
-                                        // For now, just ensures it looks somewhat like a color
-                                        return colorMatch;
-                                    });
+									// Basic color validation (ensure it's hex, rgb, or known color) - very basic
+									value = value.replace(
+										/#[0-9a-fA-F]{3,6}|rgba?\([^)]+\)|[a-zA-Z]+/g,
+										(colorMatch) => {
+											// This is a placeholder - real color validation is complex
+											// For now, just ensures it looks somewhat like a color
+											return colorMatch;
+										}
+									);
 								}
 								// Add more value sanitization for other props if needed (e.g., font-size)
 
@@ -115,7 +113,7 @@
 							}
 						}
 						data.attrValue = validatedStyles.join('; '); // Add space for readability
-                        console.log(`[Sanitize Style] Final style attribute value:`, data.attrValue);
+						console.log(`[Sanitize Style] Final style attribute value:`, data.attrValue);
 					}
 				}
 			);
@@ -144,7 +142,7 @@
 
 		<div class="prose max-w-5xl flex-1 px-4">
 			{#if email.content_type === 'text/html' && email.html_body}
-				{@html getSanitizedContent(email, $mode ?? 'light')}
+				{@html getSanitizedContent(email, mode.current ?? 'light')}
 			{:else}
 				<p class="whitespace-pre-wrap">{email.body}</p>
 			{/if}
@@ -157,7 +155,7 @@
 {/if}
 
 <style>
-:global(.prose table) {
+	:global(.prose table) {
 		width: 100%;
 		border-collapse: collapse;
 		margin: 1rem 0;

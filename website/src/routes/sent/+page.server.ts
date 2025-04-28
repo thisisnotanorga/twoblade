@@ -12,12 +12,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 
     const emails: Email[] = await sql`
         SELECT * FROM emails 
-        WHERE to_address = ${userEmail}
-        AND status = 'sent'
-        AND (
-            snooze_until IS NULL 
-            OR snooze_until <= CURRENT_TIMESTAMP
-        )
+        WHERE from_address = ${userEmail}
         ORDER BY sent_at DESC 
         LIMIT 100
     `;
