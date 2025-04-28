@@ -10,6 +10,20 @@ const HTTP_PORT = +process.env.HTTP_PORT || SHARP_PORT + 1
 const DOMAIN = process.env.DOMAIN_NAME || 'localhost'
 const sql = postgres(process.env.DATABASE_URL)
 
+setInterval(async () => {
+    try {
+        await sql`
+            UPDATE emails 
+            SET status = 'failed',
+                error_message = 'Timed out while pending'
+            WHERE status = 'pending' 
+            AND sent_at < NOW() - INTERVAL '30 seconds'
+        `;
+    } catch (error) {
+        console.error('Error updating stale pending emails:', error);
+    }
+}, 10000);
+
 const PROTOCOL_VERSION = 'SHARP/1.0'
 
 const verifyUser = (u, d) =>
