@@ -9,6 +9,20 @@
 	import type { EmailContentType } from '$lib/types/email';
 	import { PUBLIC_DOMAIN } from '$env/static/public';
 	import { USER_DATA } from '$lib/stores/user';
+	import { CalendarClock } from 'lucide-svelte';
+	import {
+		DateFormatter,
+		type DateValue,
+		getLocalTimeZone,
+		today,
+		parseDate,
+		CalendarDateTime
+	} from '@internationalized/date';
+	import { Calendar } from '$lib/components/ui/calendar';
+	import * as Popover from '$lib/components/ui/popover';
+	import { cn } from '$lib/utils';
+	import { buttonVariants } from '$lib/components/ui/button';
+    import DateTimePicker from './DateTimePicker.svelte';
 
 	let {
 		isOpen,
@@ -32,6 +46,13 @@
 	let draftId = $state<number | null>(null);
 	let autoSaveTimeout = $state<number | null>(null);
 	let saveStatus = $state<'idle' | 'saving' | 'saved'>('idle');
+	let scheduledDate = $state<DateValue | undefined>();
+	let contentRef = $state<HTMLElement | null>(null);
+
+	const df = new DateFormatter('en-US', {
+		dateStyle: 'full',
+		timeStyle: 'short'
+	});
 
 	$effect(() => {
 		if (initialDraft) {
@@ -137,7 +158,8 @@
 			subject,
 			body,
 			content_type: contentType,
-			html_body: htmlMode ? htmlBody : null
+			html_body: htmlMode ? htmlBody : null,
+			scheduled_at: scheduledDate ? scheduledDate.toDate(getLocalTimeZone()).toISOString() : null
 		};
 		isStatusVisible = true;
 		status = 'Sending...';
@@ -191,9 +213,11 @@
 			isStatusVisible = false;
 			draftId = null;
 			saveStatus = 'idle';
+			scheduledDate = undefined;
 			if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
 		}
 	}
+
 </script>
 
 <Dialog.Root open={isOpen} onOpenChange={handleOpenChange}>
@@ -253,14 +277,17 @@
 
 		<div class="mt-4 flex items-center justify-between">
 			<div class="flex items-center gap-2">
-				<Button variant="outline" onclick={() => handleOpenChange(false)}>Cancel</Button>
-				{#if saveStatus === 'saving'}
-					<span class="text-muted-foreground text-sm">Saving to cloud...</span>
-				{:else if saveStatus === 'saved'}
-					<span class="text-sm text-green-700">Saved to cloud</span>
-				{/if}
+				<Button variant="outline" onclick={() => handleOpenChange(false)} class="underline"
+					>Cancel</Button
+				>
+				<DateTimePicker 
+                    date={scheduledDate}
+                    onChange={(date) => scheduledDate = date}
+                />
 			</div>
-			<Button type="submit" onclick={handleSubmit}>Send</Button>
+			<Button type="submit" onclick={handleSubmit} class="gap-2">
+				{scheduledDate ? 'Schedule' : 'Send'}
+			</Button>
 		</div>
 
 		{#if isStatusVisible}

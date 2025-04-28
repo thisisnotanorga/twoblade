@@ -86,7 +86,7 @@
 	<ComposeEmail
 		isOpen={isComposeOpen}
 		initialDraft={selectedDraft}
-		onOpenChange={(open) => {
+		onOpenChange={(open: boolean) => {
 			isComposeOpen = open;
 			if (!open) selectedDraft = null;
 		}}

@@ -1,4 +1,4 @@
-export type EmailStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'rejected';
+export type EmailStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'rejected' | 'scheduled';
 export type EmailContentType = 'text/plain' | 'text/html';
 
 export interface Email {

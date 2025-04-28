@@ -15,18 +15,12 @@ export const load: PageServerLoad = async ({ locals }) => {
             SELECT 1 FROM email_stars es 
             WHERE es.email_id = e.id 
             AND es.user_email = ${userEmail}
-        ) as starred,
-        CASE 
-            WHEN scheduled_at > CURRENT_TIMESTAMP THEN scheduled_at
-            ELSE NULL
-        END as effective_scheduled_at
+        ) as starred
         FROM emails e 
         WHERE from_address = ${userEmail}
-        ORDER BY 
-            CASE WHEN status = 'pending' AND scheduled_at > CURRENT_TIMESTAMP 
-                THEN scheduled_at
-                ELSE sent_at
-            END DESC 
+        AND status = 'scheduled'
+        AND scheduled_at > CURRENT_TIMESTAMP
+        ORDER BY scheduled_at ASC
         LIMIT 100
     `;
 

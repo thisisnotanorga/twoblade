@@ -24,7 +24,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
         }
 
         const emailData = await request.json();
-        const { from, to, subject, body, content_type = 'text/plain', html_body } = emailData;
+        const { from, to, subject, body, content_type = 'text/plain', html_body, scheduled_at = null } = emailData;
 
         const apiUrl = `https://${PUBLIC_DOMAIN}/api/send`;
 
@@ -34,7 +34,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${authToken}`
             },
-            body: JSON.stringify({ from, to, subject, body, content_type, html_body })
+            body: JSON.stringify({ from, to, subject, body, content_type, html_body, scheduled_at })
         });
 
         console.log('Response status:', response.status);

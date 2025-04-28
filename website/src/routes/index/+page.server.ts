@@ -9,7 +9,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     }
 
     const userEmail = `${locals.user.username}#${locals.user.domain}`;
-
+    
     const emails: Email[] = await sql`
         SELECT e.*, EXISTS(
             SELECT 1 FROM email_stars es 
@@ -22,6 +22,10 @@ export const load: PageServerLoad = async ({ locals }) => {
         AND (
             e.snooze_until IS NULL 
             OR e.snooze_until <= CURRENT_TIMESTAMP
+        )
+        AND (
+            e.scheduled_at IS NULL
+            OR e.scheduled_at <= CURRENT_TIMESTAMP
         )
         ORDER BY e.sent_at DESC 
         LIMIT 100

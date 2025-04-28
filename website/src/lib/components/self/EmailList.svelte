@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Square, CheckSquare } from 'lucide-svelte';
+	import { Square, CheckSquare, Calendar } from 'lucide-svelte';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { scale } from 'svelte/transition';
 	import Star from '$lib/components/self/icons/Star.svelte';
@@ -39,6 +39,15 @@
 			hour: '2-digit',
 			minute: '2-digit'
 		});
+	}
+
+	function formatScheduledDate(date: string) {
+		const scheduledDate = new Date(date);
+
+		return `${scheduledDate.toLocaleString([], {
+			dateStyle: 'medium',
+			timeStyle: 'short'
+		})}`;
 	}
 
 	function toggleSelect(emailId: string) {
@@ -247,6 +256,17 @@
 											>
 												{email.status === 'sending' ? 'Sending...' : 'Pending'}
 											</span>
+										{:else if email.status === 'scheduled'}
+											<span
+												class="bg-accent/10 text-accent-foreground inline-flex items-center rounded-md px-2 py-1 text-xs font-medium"
+											>
+												Scheduled
+											</span>
+											{#if email.scheduled_at}
+												<span class="text-muted-foreground text-xs italic">
+													(scheduled for {formatScheduledDate(email.scheduled_at)})
+												</span>
+											{/if}
 										{:else}
 											<span
 												class="bg-destructive/10 text-destructive inline-flex items-center rounded-md px-2 py-1 text-xs font-medium"
