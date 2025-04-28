@@ -57,7 +57,8 @@ CREATE TABLE
         status email_status DEFAULT 'pending',
         snooze_until TIMESTAMP
         WITH
-            TIME ZONE DEFAULT NULL
+            TIME ZONE DEFAULT NULL,
+        starred BOOLEAN DEFAULT FALSE
     );
 
 CREATE INDEX idx_emails_from ON emails (from_address);

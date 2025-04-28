@@ -9,6 +9,7 @@
 	import SnoozeButton from './SnoozeButton.svelte';
 	import UnsnoozeButton from './UnsnoozeButton.svelte';
 	import TimeUntil from '$lib/components/self/TimeUntil.svelte';
+	import { toast } from 'svelte-sonner';
 
 	let props = $props<{
 		emails: Email[];
@@ -42,11 +43,36 @@
 		selectedEmails = newSet;
 	}
 
-	function toggleStar(emailId: string) {
-		const newSet = new Set(starredEmails);
-		if (newSet.has(emailId)) newSet.delete(emailId);
-		else newSet.add(emailId);
-		starredEmails = newSet;
+	async function toggleStar(emailId: string) {
+		const email = emails.find((e: Email) => e.id === emailId);
+		if (!email) return;
+
+		try {
+			const response = await fetch('/api/emails/star', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					emailId,
+					starred: !email.starred
+				})
+			});
+
+			if (response.ok) {
+				emails = emails.map((e: Email) => (e.id === emailId ? { ...e, starred: !e.starred } : e));
+
+				const newSet = new Set(starredEmails);
+				if (email.starred) {
+					newSet.delete(emailId);
+				} else {
+					newSet.add(emailId);
+				}
+				starredEmails = newSet;
+			}
+		} catch (error) {
+			toast.error('Failed to update star status');
+		}
 	}
 
 	function handleKeyDown(event: KeyboardEvent, email: Email) {
@@ -64,6 +90,10 @@
 
 	$effect(() => {
 		emails = initialEmails;
+	});
+
+	$effect(() => {
+		starredEmails = new Set(emails.filter((e: Email) => e.starred).map((e: Email) => e.id));
 	});
 </script>
 

@@ -12,6 +12,7 @@ export interface Email {
     sent_at: string;
     error_message: string | null;
     status: EmailStatus;
+    starred: boolean;
     content_type: EmailContentType;
     html_body: string | null;
 }
