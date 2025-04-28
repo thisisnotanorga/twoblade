@@ -97,6 +97,7 @@
 @layer base {
   * {
     @apply border-border;
+    /* border: 1px solid red !important; */
   }
 
   body {

@@ -25,7 +25,7 @@
 	{#if !isAuthRoute}
 		<AppSidebar />
 	{/if}
-	<Sidebar.Inset>
+	<Sidebar.Inset class="sidebar-container">
 		{#if !isAuthRoute}
 			<header
 				class="group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 flex h-12 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear"
@@ -38,10 +38,10 @@
 			</header>
 		{/if}
 
-		<div class="flex flex-1 flex-col">
-			<div class="@container/main</div> flex flex-1 flex-col gap-2">
-				<div class="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-					<div class="px-4 lg:px-6">
+		<div class="main-content-area">
+			<div class="@container/main flex flex-col gap-2">
+				<div class="flex flex-col gap-4 md:gap-6">
+					<div class="px-4 lg:px-6 md:py-4">
 						{@render children()}
 					</div>
 				</div>
@@ -49,3 +49,15 @@
 		</div>
 	</Sidebar.Inset>
 </Sidebar.Provider>
+
+<style>
+	:global(.main-content-area) {
+		height: calc(100vh - 3rem - 2rem);
+		overflow: hidden;
+	}
+
+	:global(.sidebar-container) {
+		height: calc(100vh - 3rem - 2rem);
+		overflow: hidden;
+	}
+</style>
