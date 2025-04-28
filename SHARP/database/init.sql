@@ -75,3 +75,18 @@ CREATE TABLE
     );
 
 CREATE INDEX idx_email_stars_user ON email_stars(user_email);
+
+CREATE TABLE
+    email_drafts (
+        id SERIAL PRIMARY KEY,
+        user_email VARCHAR(255) NOT NULL,
+        to_address VARCHAR(255),
+        subject TEXT,
+        body TEXT,
+        content_type VARCHAR(50) DEFAULT 'text/plain',
+        html_body TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+CREATE INDEX idx_email_drafts_user ON email_drafts(user_email);

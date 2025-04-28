@@ -17,6 +17,18 @@ export interface Email {
     html_body: string | null;
 }
 
+export interface Draft {
+    id: number;
+    user_email: string;
+    to_address: string | null;
+    subject: string | null;
+    body: string | null;
+    content_type: EmailContentType;
+    html_body: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
 export type AllowedTag = 'p' | 'br' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' |
     'ul' | 'ol' | 'li' | 'strong' | 'em' | 'u' | 'a' | 'img' |
     'table' | 'thead' | 'tbody' | 'tr' | 'th' | 'td';

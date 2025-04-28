@@ -10,7 +10,15 @@
 	import { PUBLIC_DOMAIN } from '$env/static/public';
 	import { USER_DATA } from '$lib/stores/user';
 
-	let { isOpen } = $props<{ isOpen: boolean }>();
+	let {
+		isOpen,
+		initialDraft = null,
+		onOpenChange = undefined
+	} = $props<{
+		isOpen: boolean;
+		initialDraft?: any;
+		onOpenChange?: (open: boolean) => void;
+	}>();
 
 	let from = $state($USER_DATA!.username + '#' + PUBLIC_DOMAIN);
 	let to = $state('');
@@ -21,6 +29,103 @@
 	let status = $state('');
 	let isStatusVisible = $state(false);
 	let statusColor = $state<'default' | 'destructive'>('default');
+	let draftId = $state<number | null>(null);
+	let autoSaveTimeout = $state<number | null>(null);
+	let saveStatus = $state<'idle' | 'saving' | 'saved'>('idle');
+
+	$effect(() => {
+		if (initialDraft) {
+			to = initialDraft.to_address || '';
+			subject = initialDraft.subject || '';
+			body = initialDraft.content_type === 'text/plain' ? initialDraft.body || '' : '';
+			htmlBody = initialDraft.content_type === 'text/html' ? initialDraft.body || '' : '';
+			htmlMode = initialDraft.content_type === 'text/html';
+			draftId = initialDraft.id;
+		}
+	});
+
+	async function saveDraft(content: {
+		to: string;
+		subject: string;
+		body: string;
+		contentType: string;
+		htmlBody: string | null;
+	}) {
+		// only save if there's content
+		if (!content.to && !content.subject && !content.body && !content.htmlBody) {
+			return;
+		}
+
+		if (saveStatus === 'saving') return;
+		saveStatus = 'saving';
+
+		try {
+			const isUpdate = draftId !== null;
+			const method = isUpdate ? 'PUT' : 'POST';
+			const draftPayload = {
+				id: draftId, // include id for PUT requests
+				to: content.to,
+				subject: content.subject,
+				body: content.body,
+				contentType: content.contentType,
+				htmlBody: content.htmlBody
+			};
+
+			console.log(`Saving draft (Method: ${method}):`, draftPayload);
+			const response = await fetch('/api/drafts', {
+				method: method,
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(draftPayload)
+			});
+
+			if (response.ok) {
+				const { id } = await response.json();
+				if (!isUpdate) {
+					draftId = id; // store the new ID if it was a creation
+				}
+				saveStatus = 'saved';
+			} else {
+				console.error('Failed to save draft:', response.status, await response.text());
+				saveStatus = 'idle';
+			}
+		} catch (error) {
+			console.error('Failed to save draft:', error);
+			saveStatus = 'idle';
+		}
+	}
+
+	async function deleteDraft() {
+		if (!draftId) return;
+
+		try {
+			await fetch('/api/drafts', {
+				method: 'DELETE',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ id: draftId })
+			});
+		} catch (error) {
+			console.error('Failed to delete draft:', error);
+		}
+	}
+
+	function scheduleAutoSave() {
+		if (autoSaveTimeout) window.clearTimeout(autoSaveTimeout);
+		saveStatus = 'idle';
+
+		const currentContent = {
+			to,
+			subject,
+			body: htmlMode ? htmlBody : body,
+			contentType: htmlMode ? 'text/html' : 'text/plain',
+			htmlBody: htmlMode ? htmlBody : null
+		};
+
+		if (currentContent.body) {
+			autoSaveTimeout = window.setTimeout(() => {
+				saveDraft(currentContent);
+			}, 1500);
+		}
+	}
 
 	async function handleSubmit(event: { preventDefault: () => void }) {
 		event.preventDefault();
@@ -51,6 +156,7 @@
 			if (response.ok) {
 				status = `Email sent successfully!\n${JSON.stringify(result, null, 2)}`;
 				statusColor = 'default';
+				await deleteDraft();
 			} else {
 				status = `Error sending email:\n${result.message || response.statusText}`;
 				statusColor = 'destructive';
@@ -63,13 +169,29 @@
 	}
 
 	function handleOpenChange(open: boolean) {
+		if (onOpenChange) onOpenChange(open);
+		if (!open && (to || subject || body || htmlBody)) {
+			// save one last time before closing
+			saveDraft({
+				to,
+				subject,
+				body: htmlMode ? htmlBody : body,
+				contentType: htmlMode ? 'text/html' : 'text/plain',
+				htmlBody: htmlMode ? htmlBody : null
+			});
+		}
 		isOpen = open;
 		if (!open) {
+			// reset state when dialog closes
 			to = '';
 			subject = '';
 			body = '';
 			htmlBody = '';
+			htmlMode = false;
 			isStatusVisible = false;
+			draftId = null;
+			saveStatus = 'idle';
+			if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
 		}
 	}
 </script>
@@ -112,6 +234,7 @@
 						<Textarea
 							id="html-body"
 							bind:value={htmlBody}
+							oninput={scheduleAutoSave}
 							class="mt-8 min-h-[300px] font-mono"
 							placeholder="<p>Write your message here...</p>"
 						/>
@@ -119,6 +242,7 @@
 						<Textarea
 							id="body"
 							bind:value={body}
+							oninput={scheduleAutoSave}
 							class="mt-8 min-h-[300px]"
 							placeholder="Write your message here..."
 						/>
@@ -127,8 +251,15 @@
 			</div>
 		</Dialog.Header>
 
-		<div class="mt-4 flex justify-between">
-			<Button variant="outline" onclick={() => handleOpenChange(false)}>Cancel</Button>
+		<div class="mt-4 flex items-center justify-between">
+			<div class="flex items-center gap-2">
+				<Button variant="outline" onclick={() => handleOpenChange(false)}>Cancel</Button>
+				{#if saveStatus === 'saving'}
+					<span class="text-muted-foreground text-sm">Saving to cloud...</span>
+				{:else if saveStatus === 'saved'}
+					<span class="text-sm text-green-700">Saved to cloud</span>
+				{/if}
+			</div>
 			<Button type="submit" onclick={handleSubmit}>Send</Button>
 		</div>
 
