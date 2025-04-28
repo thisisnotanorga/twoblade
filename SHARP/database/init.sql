@@ -11,7 +11,8 @@ CREATE TYPE email_status AS ENUM (
     'sending', -- Transmission in progress
     'sent', -- Successfully delivered
     'failed', -- Transmission failed
-    'rejected' -- Explicitly rejected by remote server
+    'rejected', -- Explicitly rejected by remote server
+    'scheduled' -- Scheduled for future delivery
 );
 
 CREATE TABLE

@@ -268,7 +268,16 @@ async function processScheduledEmails() {
             `;
 
             try {
-                await sendEmailToRemoteServer(email);
+                const emailToSend = {
+                    from: email.from_address,
+                    to: email.to_address,
+                    subject: email.subject,
+                    body: email.body,
+                    content_type: email.content_type,
+                    html_body: email.html_body
+                };
+                
+                await sendEmailToRemoteServer(emailToSend);
                 await sql`
                     UPDATE emails 
                     SET status = 'sent'
