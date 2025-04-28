@@ -251,9 +251,17 @@ const app = express()
 app.use(cors(), express.json())
 
 app.post('/api/send', validateAuthToken, async (req, res) => {
-    let logEntry
+    let logEntry;
     try {
-        const { from, to, subject, body, content_type = 'text/plain', html_body } = req.body
+        const { from, to, subject, body, content_type = 'text/plain', html_body } = req.body;
+        const fp_ = parseSharpAddress(from);
+        const tp_ = parseSharpAddress(to);
+
+        // Local delivery: insert once with status 'sent' and return immediately
+        if (tp_.domain === DOMAIN) {
+            await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'sent');
+            return res.json({ success: true });
+        }
 
         // validate that the sender matches the authenticated user
         const fromAddress = parseSharpAddress(from);
