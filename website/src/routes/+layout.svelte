@@ -8,6 +8,7 @@
 	import { currentTab } from '$lib/stores/navigation';
 	import { USER_DATA } from '$lib/stores/user';
 	import { page } from '$app/state';
+	import EmailClassificationButtons from '$lib/components/self/EmailClassificationButtons.svelte';
 
 	let { children, data } = $props();
 
@@ -16,6 +17,7 @@
 	});
 
 	const isAuthRoute = $derived(!!page.route.id?.startsWith('/(auth)'));
+	const isEmailRoute = $derived(page.route.id === '/index');
 </script>
 
 <ModeWatcher />
@@ -33,7 +35,11 @@
 				<div class="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
 					<Sidebar.Trigger class="-ml-1" />
 					<Separator orientation="vertical" class="mx-2 data-[orientation=vertical]:h-4" />
+
 					<h1 class="text-base font-medium">{$currentTab}</h1>
+					{#if isEmailRoute}
+						<EmailClassificationButtons />
+					{/if}
 				</div>
 			</header>
 		{/if}
@@ -41,7 +47,7 @@
 		<div class="main-content-area">
 			<div class="@container/main flex flex-col gap-2">
 				<div class="flex flex-col gap-4 md:gap-6">
-					<div class="px-4 lg:px-6 md:py-4">
+					<div class="px-4 md:py-4 lg:px-6">
 						{@render children()}
 					</div>
 				</div>

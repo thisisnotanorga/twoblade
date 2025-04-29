@@ -1,6 +1,8 @@
 export type EmailStatus = 'pending' | 'sending' | 'sent' | 'failed' | 'rejected' | 'scheduled';
 export type EmailContentType = 'text/plain' | 'text/html';
 
+export type EmailClassification = 'primary' | 'promotions' | 'social' | 'forums' | 'updates';
+
 export interface Email {
     id: string;
     from_address: string;
@@ -16,6 +18,7 @@ export interface Email {
     content_type: EmailContentType;
     html_body: string | null;
     read_at: string | null;
+    classification: EmailClassification;
 }
 
 export interface Draft {

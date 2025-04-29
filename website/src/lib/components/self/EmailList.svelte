@@ -1,5 +1,14 @@
 <script lang="ts">
-	import { Square, CheckSquare, Calendar } from 'lucide-svelte';
+	import {
+		Square,
+		CheckSquare,
+		Calendar,
+		Inbox,
+		TagsIcon,
+		MessagesSquare,
+		Users,
+		Bell
+	} from 'lucide-svelte';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { scale } from 'svelte/transition';
 	import Star from '$lib/components/self/icons/Star.svelte';
@@ -11,6 +20,8 @@
 	import TimeUntil from '$lib/components/self/TimeUntil.svelte';
 	import { toast } from 'svelte-sonner';
 	import { USER_DATA } from '$lib/stores/user';
+	import * as Tooltip from '$lib/components/ui/tooltip';
+	import { classificationColors } from '$lib/utils/classification-colors';
 
 	let props = $props<{
 		emails: Email[];
@@ -19,20 +30,18 @@
 		showRecipient?: boolean;
 	}>();
 
-	let { emails: initialEmails, showStatus = false, showUnsnooze = false, showRecipient = false } = props;
-	let emails = $state(initialEmails);
+	let { emails, showStatus = false, showUnsnooze = false, showRecipient = false } = props;
 
 	let selectedEmail: Email | null = $state(null);
 	let selectedEmails = $state<Set<string>>(new Set());
-	let starredEmails = $state<Set<string>>(new Set());
-
-	let isReceiver = $derived((email: Email) => 
-		email.to_address === $USER_DATA?.username + '#' + $USER_DATA?.domain
+	let starredEmails = $derived(
+		new Set(emails.filter((e: Email) => e.starred).map((e: Email) => e.id))
 	);
 
-	$effect(() => {
-		console.log(selectedEmail);
-	});
+	let isReceiver = $derived(
+		(email: Email) => email.to_address === $USER_DATA?.username + '#' + $USER_DATA?.domain
+	);
+
 	function formatDate(date: string) {
 		return new Date(date).toLocaleString([], {
 			month: 'short',
@@ -59,31 +68,21 @@
 	}
 
 	async function toggleStar(emailId: string) {
-		const email = emails.find((e: Email) => e.id === emailId);
-		if (!email) return;
+		const emailIndex = emails.findIndex((e: Email) => e.id === emailId);
+		if (emailIndex === -1) return;
+		const email = emails[emailIndex];
 
 		try {
 			const response = await fetch('/api/emails/star', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					emailId,
-					starred: !email.starred
-				})
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ emailId, starred: !email.starred })
 			});
 
 			if (response.ok) {
-				emails = emails.map((e: Email) => (e.id === emailId ? { ...e, starred: !e.starred } : e));
-
-				const newSet = new Set(starredEmails);
-				if (email.starred) {
-					newSet.delete(emailId);
-				} else {
-					newSet.add(emailId);
-				}
-				starredEmails = newSet;
+				emails[emailIndex] = { ...email, starred: !email.starred };
+			} else {
+				toast.error('Failed to update star status');
 			}
 		} catch (error) {
 			toast.error('Failed to update star status');
@@ -91,6 +90,9 @@
 	}
 
 	async function handleEmailSelect(email: Email) {
+		const emailIndex = emails.findIndex((e: Email) => e.id === email.id);
+		if (emailIndex === -1) return;
+
 		if (isReceiver(email) && !email.read_at) {
 			try {
 				const response = await fetch('/api/emails/read', {
@@ -100,12 +102,9 @@
 				});
 
 				if (response.ok) {
-					// update the email's read status in our local state
-					emails = emails.map((e: Email) => 
-						e.id === email.id 
-							? { ...e, read_at: new Date().toISOString() }
-							: e
-					);
+					emails[emailIndex] = { ...emails[emailIndex], read_at: new Date().toISOString() };
+				} else {
+					console.error('Failed to mark email as read via API');
 				}
 			} catch (error) {
 				console.error('Failed to mark email as read:', error);
@@ -123,17 +122,25 @@
 
 	function handleActionComplete(ids: string[]) {
 		const idsSet = new Set(ids);
-		emails = emails.filter((email: Email) => !idsSet.has(email.id));
+		props.emails = emails.filter((email: Email) => !idsSet.has(email.id));
 		selectedEmails = new Set();
+		if (selectedEmail && idsSet.has(selectedEmail.id)) {
+			selectedEmail = null;
+		}
 	}
 
-	$effect(() => {
-		emails = initialEmails;
-	});
+	type Classification = 'primary' | 'promotions' | 'social' | 'forums' | 'updates';
 
-	$effect(() => {
-		starredEmails = new Set(emails.filter((e: Email) => e.starred).map((e: Email) => e.id));
-	});
+	const classificationIcons: Record<
+		Classification,
+		typeof Inbox | typeof TagsIcon | typeof Users | typeof MessagesSquare | typeof Bell
+	> = {
+		primary: Inbox,
+		promotions: TagsIcon,
+		social: Users,
+		forums: MessagesSquare,
+		updates: Bell
+	};
 </script>
 
 <div class="h-[calc(100vh-6rem)] w-full">
@@ -228,11 +235,33 @@
 										</span>
 									</div>
 									<div class="ml-3 flex min-w-0 flex-1 items-center space-x-3">
-										<span class="max-w-[200px] truncate font-medium {isReceiver(email) && !email.read_at ? 'font-bold' : ''}">
-												{showRecipient ? email.to_address : email.from_address}
+										<span
+											class="max-w-[200px] truncate font-medium {isReceiver(email) && !email.read_at
+												? 'font-bold'
+												: ''}"
+										>
+											{showRecipient ? email.to_address : email.from_address}
 										</span>
+
+										<Tooltip.Root>
+											<Tooltip.Trigger
+												class="flex h-6 w-6 items-center justify-center rounded-full transition-colors
+													{classificationColors[email.classification as Classification].bg}/10
+													{classificationColors[email.classification as Classification].text}
+													hover:{classificationColors[email.classification as Classification].bg}/20"
+											>
+												{@const Icon = classificationIcons[email.classification as Classification]}
+												<Icon class="h-3.5 w-3.5" />
+											</Tooltip.Trigger>
+											<Tooltip.Content>
+												<p class="capitalize">{email.classification}</p>
+											</Tooltip.Content>
+										</Tooltip.Root>
+
 										<div class="flex-1 truncate">
-											<span class="mr-1 {isReceiver(email) && !email.read_at ? 'font-bold' : ''}">{email.subject}</span>
+											<span class="mr-1 {isReceiver(email) && !email.read_at ? 'font-bold' : ''}"
+												>{email.subject}</span
+											>
 											<span class="text-muted-foreground">- {email.body}</span>
 										</div>
 										<span class="flex-shrink-0 whitespace-nowrap text-xs/snug">

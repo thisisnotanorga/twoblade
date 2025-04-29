@@ -6,6 +6,8 @@ DROP TABLE IF EXISTS users;
 
 DROP TYPE IF EXISTS email_status;
 
+DROP TYPE IF EXISTS email_classification;
+
 CREATE TYPE email_status AS ENUM (
     'pending', -- Initial state
     'sending', -- Transmission in progress
@@ -13,6 +15,14 @@ CREATE TYPE email_status AS ENUM (
     'failed', -- Transmission failed
     'rejected', -- Explicitly rejected by remote server
     'scheduled' -- Scheduled for future delivery
+);
+
+CREATE TYPE email_classification AS ENUM (
+    'primary',
+    'promotions',
+    'social',
+    'forums',
+    'updates'
 );
 
 CREATE TABLE
@@ -64,7 +74,8 @@ CREATE TABLE
             TIME ZONE DEFAULT NULL,
         scheduled_at TIMESTAMP
         WITH
-            TIME ZONE DEFAULT NULL
+            TIME ZONE DEFAULT NULL,
+        classification email_classification DEFAULT 'primary'
     );
 
 CREATE INDEX idx_emails_from ON emails (from_address);

@@ -26,11 +26,42 @@ setInterval(async () => {
 
 const PROTOCOL_VERSION = 'SHARP/1.0'
 
+const KEYWORDS = {
+    promotions: new Set([
+        'sale', 'discount', 'buy now', 'limited time', 'offer',
+        'free shipping', 'coupon', 'deal', 'save', 'special'
+    ]),
+    social: new Set([
+        'friend request', 'mentioned you', 'liked your post',
+        'new follower', 'connection', 'following'
+    ]),
+    forums: new Set([
+        'digest', 'thread', 'post reply', 'new topic',
+        'unsubscribe from this group', 'mailing list'
+    ]),
+    updates: new Set([
+        'receipt', 'order confirmation', 'invoice',
+        'payment received', 'shipping update', 'account update'
+    ])
+};
+
 const verifyUser = (u, d) =>
     sql`SELECT * FROM users WHERE username=${u} AND domain=${d}`.then(r => r[0])
-const logEmail = (fa, fd, ta, td, s, b, ct = 'text/plain', hb = null, st = 'pending', sa = null) =>
-    sql`INSERT INTO emails (from_address, from_domain, to_address, to_domain, subject, body, content_type, html_body, status, scheduled_at) 
-        VALUES (${fa}, ${fd}, ${ta}, ${td}, ${s}, ${b}, ${ct}, ${hb}, ${st}, ${sa}) RETURNING id`
+const logEmail = (fa, fd, ta, td, s, b, ct = 'text/plain', hb = null, st = 'pending', sa = null) => {
+    const classification = classifyEmail(s, b, hb);
+    return sql`
+        INSERT INTO emails (
+            from_address, from_domain, to_address, to_domain, 
+            subject, body, content_type, html_body, status, 
+            scheduled_at, classification
+        ) 
+        VALUES (
+            ${fa}, ${fd}, ${ta}, ${td}, ${s}, ${b}, ${ct}, 
+            ${hb}, ${st}, ${sa}, ${classification}
+        ) 
+        RETURNING id
+    `;
+}
 
 const parseSharpAddress = a => {
     const m = a.match(/^(.+)#([^:]+)(?::(\d+))?$/)
@@ -124,6 +155,42 @@ async function processEmail({ from, to, subject, body, content_type, html_body }
     const f = parseSharpAddress(from)
     const t = parseSharpAddress(to)
     await logEmail(from, f.domain, to, t.domain, subject, body, content_type, html_body)
+}
+
+function classifyEmail(subject, body, htmlBody) {
+    const fullText = `${subject || ''} ${body || ''}`.toLowerCase();
+
+    const scores = {
+        promotions: 0,
+        social: 0,
+        forums: 0,
+        updates: 0
+    };
+
+    for (const [category, keywords] of Object.entries(KEYWORDS)) {
+        for (const keyword of keywords) {
+            if (fullText.includes(keyword.toLowerCase())) {
+                scores[category]++;
+            }
+        }
+    }
+
+    // HTML structure score for promotions
+    if (htmlBody) {
+        const htmlScore = (htmlBody.match(/<img/g) || []).length +
+            (htmlBody.match(/<table/g) || []).length +
+            (htmlBody.match(/<style/g) || []).length;
+        scores.promotions += Math.min(htmlScore, 5);
+    }
+
+    // find category with highest score
+    const maxScore = Math.max(...Object.values(scores));
+    if (maxScore > 0) {
+        return Object.entries(scores)
+            .find(([_, score]) => score === maxScore)?.[0] || 'primary';
+    }
+
+    return 'primary';
 }
 
 async function resolveSRV(domain) {
@@ -310,7 +377,6 @@ async function processScheduledEmails() {
         console.error('Error processing scheduled emails:', error);
     }
 }
-
 
 processScheduledEmails();
 setInterval(processScheduledEmails, 60000);
