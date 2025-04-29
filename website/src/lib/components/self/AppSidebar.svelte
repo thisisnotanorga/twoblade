@@ -36,15 +36,9 @@
 		],
 		navMore: [
 			{ title: 'Scheduled', url: '/scheduled', icon: ClockFading },
-			{ title: 'All Mail', url: '/all', icon: Mails },
+			// { title: 'All Mail', url: '/all', icon: Mails },
 			{ title: 'Spam', url: '/spam', icon: CircleAlert },
 			{ title: 'Trash', url: '/trash', icon: Trash2 }
-		],
-		categories: [
-			{ title: 'Social', url: '/social', icon: UsersRound },
-			{ title: 'Updates', url: '/updates', icon: Info },
-			{ title: 'Forums', url: '/forums', icon: MessagesSquare },
-			{ title: 'Promotions', url: '/promotions', icon: Tag }
 		]
 	};
 	let isExpanded = $state(false);
@@ -133,23 +127,6 @@
 												$currentTab === item.title ? 'bg-accent text-accent-foreground' : ''
 											} ${props.class}`}
 										>
-											<item.icon />
-											<span>{item.title}</span>
-										</a>
-									{/snippet}
-								</Sidebar.MenuButton>
-							</Sidebar.MenuItem>
-						{/each}
-
-						<!-- Categories section -->
-						<Sidebar.MenuItem>
-							<Sidebar.GroupLabel>Categories</Sidebar.GroupLabel>
-						</Sidebar.MenuItem>
-						{#each data.categories as item}
-							<Sidebar.MenuItem>
-								<Sidebar.MenuButton>
-									{#snippet child({ props }: { props: MenuButtonProps })}
-										<a href={item.url || '/'} onclick={() => handleNavClick(item.title)} {...props}>
 											<item.icon />
 											<span>{item.title}</span>
 										</a>
