@@ -50,7 +50,7 @@
 	}
 </script>
 
-<ComposeEmail isOpen={showCompose} />
+<ComposeEmail bind:isOpen={showCompose} />
 
 <Sidebar.Root collapsible="offcanvas" variant="inset">
 	<Sidebar.Header>
@@ -67,10 +67,7 @@
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton>
 							{#snippet child()}
-								 <Button 
-									onclick={() => showCompose = true} 
-									class={`h-[3.0rem] w-36 mb-4`}
-								>
+								<Button onclick={() => (showCompose = true)} class={`mb-4 h-[3.0rem] w-36`}>
 									<PenSquare />
 									<span>Compose</span>
 								</Button>
@@ -138,7 +135,10 @@
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton>
 							{#snippet child({ props }: { props: MenuButtonProps })}
-								<button onclick={() => setMode(mode.current === 'light' ? 'dark' : 'light')} {...props}>
+								<button
+									onclick={() => setMode(mode.current === 'light' ? 'dark' : 'light')}
+									{...props}
+								>
 									{#if mode.current === 'light'}
 										<Moon class="h-5 w-5" />
 										<span>Dark Mode</span>

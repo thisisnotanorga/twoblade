@@ -30,7 +30,10 @@
 		showRecipient?: boolean;
 	}>();
 
-	let { emails, showStatus = false, showUnsnooze = false, showRecipient = false } = props;
+	let emails = $derived(props.emails);
+	let showStatus = $derived(props.showStatus ?? false);
+	let showUnsnooze = $derived(props.showUnsnooze ?? false);
+	let showRecipient = $derived(props.showRecipient ?? false);
 
 	let selectedEmail: Email | null = $state(null);
 	let selectedEmails = $state<Set<string>>(new Set());

@@ -9,29 +9,19 @@
 	import type { EmailContentType } from '$lib/types/email';
 	import { PUBLIC_DOMAIN } from '$env/static/public';
 	import { USER_DATA } from '$lib/stores/user';
-	import { CalendarClock } from 'lucide-svelte';
 	import {
 		DateFormatter,
 		type DateValue,
 		getLocalTimeZone,
-		today,
-		parseDate,
-		CalendarDateTime
 	} from '@internationalized/date';
-	import { Calendar } from '$lib/components/ui/calendar';
-	import * as Popover from '$lib/components/ui/popover';
-	import { cn } from '$lib/utils';
-	import { buttonVariants } from '$lib/components/ui/button';
     import DateTimePicker from './DateTimePicker.svelte';
 
 	let {
-		isOpen,
+		isOpen = $bindable(),
 		initialDraft = null,
-		onOpenChange = undefined
 	} = $props<{
 		isOpen: boolean;
 		initialDraft?: any;
-		onOpenChange?: (open: boolean) => void;
 	}>();
 
 	let from = $state($USER_DATA!.username + '#' + PUBLIC_DOMAIN);
@@ -47,7 +37,6 @@
 	let autoSaveTimeout = $state<number | null>(null);
 	let saveStatus = $state<'idle' | 'saving' | 'saved'>('idle');
 	let scheduledDate = $state<DateValue | undefined>();
-	let contentRef = $state<HTMLElement | null>(null);
 
 	const df = new DateFormatter('en-US', {
 		dateStyle: 'full',
@@ -191,7 +180,6 @@
 	}
 
 	function handleOpenChange(open: boolean) {
-		if (onOpenChange) onOpenChange(open);
 		if (!open && (to || subject || body || htmlBody)) {
 			// save one last time before closing
 			saveDraft({
@@ -202,7 +190,6 @@
 				htmlBody: htmlMode ? htmlBody : null
 			});
 		}
-		isOpen = open;
 		if (!open) {
 			// reset state when dialog closes
 			to = '';
@@ -220,7 +207,7 @@
 
 </script>
 
-<Dialog.Root open={isOpen} onOpenChange={handleOpenChange}>
+<Dialog.Root bind:open={isOpen} onOpenChange={handleOpenChange}>
 	<Dialog.Content class="max-w-3xl">
 		<Dialog.Header class="space-y-4">
 			<Dialog.Title>New Message</Dialog.Title>
@@ -277,7 +264,7 @@
 
 		<div class="mt-4 flex items-center justify-between">
 			<div class="flex items-center gap-2">
-				<Button variant="outline" onclick={() => handleOpenChange(false)} class="underline"
+				<Button variant="outline" onclick={() => isOpen = false} class="underline"
 					>Cancel</Button
 				>
 				<DateTimePicker 
