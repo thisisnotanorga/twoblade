@@ -114,3 +114,17 @@ CREATE TABLE
     );
 
 CREATE INDEX idx_email_drafts_user ON email_drafts (user_email);
+
+CREATE TABLE contacts (
+    id SERIAL PRIMARY KEY,
+    user_email VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    email_address VARCHAR(255) NOT NULL,
+    tag VARCHAR(50),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_email, email_address)
+);
+
+CREATE INDEX idx_contacts_user_email ON contacts(user_email);
+CREATE INDEX idx_contacts_email_address ON contacts(email_address);

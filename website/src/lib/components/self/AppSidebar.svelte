@@ -9,13 +9,9 @@
 		Send,
 		NotepadTextIcon,
 		ClockFading,
-		Mails,
 		CircleAlert,
 		Trash2,
 		UsersRound,
-		Info,
-		MessagesSquare,
-		Tag,
 		ArrowDown,
 		ArrowUp,
 		PenSquare
@@ -35,6 +31,7 @@
 			{ title: 'Drafts', url: '/drafts', icon: NotepadTextIcon }
 		],
 		navMore: [
+			{ title: 'Contacts', url: '/contacts', icon: UsersRound },
 			{ title: 'Scheduled', url: '/scheduled', icon: ClockFading },
 			// { title: 'All Mail', url: '/all', icon: Mails },
 			{ title: 'Spam', url: '/spam', icon: CircleAlert },

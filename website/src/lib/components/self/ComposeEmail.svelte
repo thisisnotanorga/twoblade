@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { Label } from '$lib/components/ui/label';
 	import { Alert, AlertDescription } from '$lib/components/ui/alert';
@@ -9,17 +8,14 @@
 	import type { EmailContentType } from '$lib/types/email';
 	import { PUBLIC_DOMAIN } from '$env/static/public';
 	import { USER_DATA } from '$lib/stores/user';
-	import {
-		DateFormatter,
-		type DateValue,
-		getLocalTimeZone,
-	} from '@internationalized/date';
-    import DateTimePicker from './DateTimePicker.svelte';
+	import { type DateValue, getLocalTimeZone } from '@internationalized/date';
+	import DateTimePicker from './DateTimePicker.svelte';
+	import type { Contact } from '$lib/types/contacts';
+	import IconInput from '$lib/components/self/IconInput.svelte';
+	import { Send, Mail, Tag, Clock, X } from 'lucide-svelte';
+	import Autocomplete from '$lib/components/self/Autocomplete.svelte';
 
-	let {
-		isOpen = $bindable(),
-		initialDraft = null,
-	} = $props<{
+	let { isOpen = $bindable(), initialDraft = null } = $props<{
 		isOpen: boolean;
 		initialDraft?: any;
 	}>();
@@ -37,11 +33,7 @@
 	let autoSaveTimeout = $state<number | null>(null);
 	let saveStatus = $state<'idle' | 'saving' | 'saved'>('idle');
 	let scheduledDate = $state<DateValue | undefined>();
-
-	const df = new DateFormatter('en-US', {
-		dateStyle: 'full',
-		timeStyle: 'short'
-	});
+	let suggestions = $state<Array<{ label: string; value: string; tag: string | null }>>([]);
 
 	$effect(() => {
 		if (initialDraft) {
@@ -179,6 +171,20 @@
 		}
 	}
 
+	async function handleSearch(query: string) {
+		const response = await fetch(`/api/contacts?search=${query}`);
+		if (response.ok) {
+			const { contacts } = (await response.json()) as { contacts: Contact[] };
+			suggestions = contacts.map((c) => ({
+				label: `${c.full_name} <${c.email_address}>`,
+				value: c.email_address,
+				tag: c.tag
+			}));
+		} else {
+			suggestions = [];
+		}
+	}
+
 	function handleOpenChange(open: boolean) {
 		if (!open && (to || subject || body || htmlBody)) {
 			// save one last time before closing
@@ -204,41 +210,53 @@
 			if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
 		}
 	}
-
 </script>
 
 <Dialog.Root bind:open={isOpen} onOpenChange={handleOpenChange}>
-	<Dialog.Content class="max-w-3xl">
-		<Dialog.Header class="space-y-4">
-			<Dialog.Title>New Message</Dialog.Title>
+	<Dialog.Content class="sm:max-w-[700px]">
+		<Dialog.Header>
+			<Dialog.Title class="text-xl">New Message</Dialog.Title>
+			<Dialog.Description class="text-muted-foreground">
+				Compose your email message below.
+			</Dialog.Description>
+		</Dialog.Header>
 
-			<div class="space-y-2 divide-y">
-				<div class="flex items-center gap-4 py-2">
-					<Label for="to" class="w-16">To:</Label>
-					<Input
-						id="to"
-						type="text"
-						bind:value={to}
-						placeholder="recipient#domain"
-						class="flex-1"
-					/>
+		<form class="space-y-4 pt-4">
+			<div class="space-y-4">
+				<div class="flex items-center gap-4">
+					<label for="to" class="w-20 text-sm font-medium">To:</label>
+					<div class="flex-1">
+						<Autocomplete
+							id="to"
+							icon={Mail}
+							bind:value={to}
+							{suggestions}
+							placeholder="recipient#domain"
+							onsearch={handleSearch}
+						/>
+					</div>
 				</div>
 
-				<div class="flex items-center gap-4 py-2">
-					<Label for="subject" class="w-16">Subject:</Label>
-					<Input
-						id="subject"
-						type="text"
-						bind:value={subject}
-						placeholder="Subject"
-						class="flex-1"
-					/>
+				<div class="flex items-center gap-4">
+					<label for="subject" class="w-20 text-sm font-medium">Subject:</label>
+					<div class="flex-1">
+						<IconInput
+							id="subject"
+							icon={Tag}
+							type="text"
+							bind:value={subject}
+							placeholder="Subject"
+						/>
+					</div>
 				</div>
 
-				<div class="relative pt-4">
-					<div class="absolute right-0 top-4 flex items-center gap-2">
-						<Label for="html-mode" class="text-muted-foreground text-sm">Rich text</Label>
-						<Switch id="html-mode" bind:checked={htmlMode} />
+				<div class="space-y-2">
+					<div class="flex items-center justify-between">
+						<label for="html-mode" class="text-sm font-medium">Message:</label>
+						<div class="flex items-center gap-2">
+							<Label for="html-mode" class="text-muted-foreground text-sm">Rich text</Label>
+							<Switch id="html-mode" bind:checked={htmlMode} />
+						</div>
 					</div>
 
 					{#if htmlMode}
@@ -246,7 +264,7 @@
 							id="html-body"
 							bind:value={htmlBody}
 							oninput={scheduleAutoSave}
-							class="mt-8 min-h-[300px] font-mono"
+							class="min-h-[300px] font-mono"
 							placeholder="<p>Write your message here...</p>"
 						/>
 					{:else}
@@ -254,35 +272,36 @@
 							id="body"
 							bind:value={body}
 							oninput={scheduleAutoSave}
-							class="mt-8 min-h-[300px]"
+							class="min-h-[300px]"
 							placeholder="Write your message here..."
 						/>
 					{/if}
 				</div>
 			</div>
-		</Dialog.Header>
 
-		<div class="mt-4 flex items-center justify-between">
-			<div class="flex items-center gap-2">
-				<Button variant="outline" onclick={() => isOpen = false} class="underline"
-					>Cancel</Button
-				>
-				<DateTimePicker 
-                    date={scheduledDate}
-                    onChange={(date) => scheduledDate = date}
-                />
-			</div>
-			<Button type="submit" onclick={handleSubmit} class="gap-2">
-				{scheduledDate ? 'Schedule' : 'Send'}
-			</Button>
-		</div>
+			<Dialog.Footer class="flex items-center justify-end gap-4">
+				<button type="button" class="mr-auto text-sm underline" onclick={() => (isOpen = false)}>
+					Cancel
+				</button>
+				<DateTimePicker date={scheduledDate} onChange={(date) => (scheduledDate = date)} />
+				<Button onclick={handleSubmit}>
+					{#if scheduledDate}
+						<Clock class="mr-2 h-4 w-4" />
+						Schedule
+					{:else}
+						<Send class="mr-2 h-4 w-4" />
+						Send
+					{/if}
+				</Button>
+			</Dialog.Footer>
 
-		{#if isStatusVisible}
-			<Alert variant={statusColor} class="mt-4">
-				<AlertDescription class="whitespace-pre-wrap">
-					{status}
-				</AlertDescription>
-			</Alert>
-		{/if}
+			{#if isStatusVisible}
+				<Alert variant={statusColor} class="mt-4">
+					<AlertDescription class="whitespace-pre-wrap">
+						{status}
+					</AlertDescription>
+				</Alert>
+			{/if}
+		</form>
 	</Dialog.Content>
 </Dialog.Root>

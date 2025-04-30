@@ -174,7 +174,7 @@
 				<h2 class="text-xl font-semibold">{email.subject || 'No subject'}</h2>
 				<div class="flex flex-wrap items-center gap-2">
 					<Badge variant={badge.variant} class="flex items-center gap-1.5">
-						<svelte:component this={badge.icon} class="h-3.5 w-3.5" />
+						<badge.icon class="h-3.5 w-3.5" />
 						{badge.label} <span class="font-medium">{badge.value}</span>
 					</Badge>
 					<Badge variant="secondary" class="flex items-center gap-1.5">
