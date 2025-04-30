@@ -19,6 +19,8 @@ export interface Email {
     html_body: string | null;
     read_at: string | null;
     classification: EmailClassification;
+    reply_to_id?: string | null;  // ID of email this is replying to
+    thread_id?: string | null;    // ID of the root email in this thread
 }
 
 export interface Draft {

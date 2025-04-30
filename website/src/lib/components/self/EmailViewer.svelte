@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
-	import { X, ArrowDownLeft, ArrowUpRight, ClockIcon, CheckCheck } from 'lucide-svelte';
+	import { X, Reply, Send, CodeXml, ChevronDown, ChevronRight } from 'lucide-svelte';
 	import { USER_DATA } from '$lib/stores/user';
 	import type { Email } from '$lib/types/email';
 	import {
@@ -11,14 +10,21 @@
 	} from '$lib/types/email';
 	import DOMPurify from 'dompurify';
 	import type { Config } from 'dompurify';
-	import { mode } from 'mode-watcher'; // Assuming mode store is here
+	import { mode } from 'mode-watcher';
+	import * as Tooltip from '$lib/components/ui/tooltip';
+	import { PUBLIC_DOMAIN } from '$env/static/public';
+	import { getInitials, getRandomColor } from '$lib/utils';
 
 	let { email, onClose } = $props<{
 		email: Email | null;
 		onClose: () => void;
 	}>();
 
-	let isReceiver = $derived(email?.to_address === $USER_DATA?.username + '#' + $USER_DATA?.domain);
+	let isReplying = $state(false);
+	let replyText = $state('');
+	let htmlMode = $state(false);
+	let threadEmails = $state<Email[]>([]);
+	let expandedEmails = $state(new Set<string>());
 
 	const sanitizeConfig: Config = {
 		ALLOWED_TAGS: [...ALLOWED_HTML_TAGS],
@@ -56,6 +62,24 @@
 			});
 		} catch (error) {
 			console.error('Failed to mark email as read:', error);
+		}
+	}
+
+	async function loadThreadEmails(email: Email) {
+		if (!email.thread_id && !email.id) return;
+
+		try {
+			const response = await fetch(`/api/emails/thread?id=${email.thread_id || email.id}`);
+			if (response.ok) {
+				const { emails } = await response.json();
+				threadEmails = emails.sort(
+					(a: Email, b: Email) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
+				);
+
+				expandedEmails = new Set([email.id]);
+			}
+		} catch (error) {
+			console.error('Failed to load thread:', error);
 		}
 	}
 
@@ -139,6 +163,10 @@
 		if (email && !email.read_at) {
 			markAsRead(email.id);
 		}
+
+		if (email) {
+			loadThreadEmails(email);
+		}
 	});
 
 	function formatDate(date: string | null) {
@@ -153,52 +181,163 @@
 		});
 	}
 
-	type BadgeVariant = 'outline' | 'default' | 'secondary' | 'destructive';
-	function getFromToBadgeContent(email: Email): { icon: any; label: string; value: string; variant: BadgeVariant } {
-		const isSender = email.from_address === $USER_DATA?.username + '#' + $USER_DATA?.domain;
-		return {
-			icon: isSender ? ArrowUpRight : ArrowDownLeft,
-			label: isSender ? 'To' : 'From',
-			value: isSender ? email.to_address : email.from_address,
-			variant: isSender ? 'outline' : 'default'
+	function handleReplyClick() {
+		isReplying = true;
+	}
+
+	async function handleSendReply() {
+		if (!replyText.trim() || !email) return;
+
+		const emailData = {
+			from: $USER_DATA!.username + '#' + PUBLIC_DOMAIN,
+			to: email.from_address,
+			subject: `Re: ${email.subject?.replace(/^Re:\s+/i, '')}` || '',
+			body: replyText,
+			content_type: htmlMode ? 'text/html' : 'text/plain',
+			html_body: htmlMode ? replyText : null,
+			reply_to_id: email.id,
+			thread_id: email.thread_id || email.id
 		};
+
+		try {
+			const response = await fetch('/api/mail', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(emailData)
+			});
+
+			if (response.ok) {
+				isReplying = false;
+				replyText = '';
+			} else {
+				const result = await response.json();
+				console.error('Failed to send reply:', result.message);
+			}
+		} catch (error) {
+			console.error('Failed to send reply:', error);
+		}
+	}
+
+	function toggleExpanded(emailId: string) {
+		const newSet = new Set(expandedEmails);
+		if (newSet.has(emailId)) {
+			newSet.delete(emailId);
+		} else {
+			newSet.add(emailId);
+		}
+		expandedEmails = newSet;
 	}
 </script>
 
 {#if email}
-	{@const badge = getFromToBadgeContent(email)}
-
 	<div class="flex h-full flex-col">
-		<div class="flex items-center justify-between border-b p-4">
-			<div class="space-y-1">
-				<h2 class="text-xl font-semibold">{email.subject || 'No subject'}</h2>
-				<div class="flex flex-wrap items-center gap-2">
-					<Badge variant={badge.variant} class="flex items-center gap-1.5">
-						<badge.icon class="h-3.5 w-3.5" />
-						{badge.label} <span class="font-medium">{badge.value}</span>
-					</Badge>
-					<Badge variant="secondary" class="flex items-center gap-1.5">
-						<ClockIcon class="h-3.5 w-3.5" />
-						Sent {formatDate(email.sent_at)}
-					</Badge>
-					{#if !isReceiver && email.read_at}
-						<Badge variant="secondary" class="flex items-center gap-1.5">
-							<CheckCheck class="h-3.5 w-3.5" />
-							Seen {formatDate(email.read_at)}
-						</Badge>
-					{/if}
-				</div>
-			</div>
-			<Button variant="ghost" size="icon" onclick={onClose} class="ml-auto">
+		<!-- Original header -->
+		<div class="border-b p-4">
+			<Button variant="ghost" size="icon" class="float-right" onclick={onClose}>
 				<X class="h-4 w-4" />
 			</Button>
+			<h2 class="text-xl font-semibold">{email.subject || 'No subject'}</h2>
 		</div>
 
-		<div class="flex-1 overflow-auto p-4">
-			{#if email.content_type === 'text/html'}
-				{@html getSanitizedContent(email, mode.current ?? 'light')}
+		<!-- THREAD LIST -->
+		<div class="flex-1 divide-y overflow-auto">
+			{#each threadEmails as threadEmail (threadEmail.id)}
+				<div class="p-4">
+					<button
+						type="button"
+						class="flex cursor-pointer items-center gap-2"
+						onclick={() => toggleExpanded(threadEmail.id)}
+						aria-expanded={expandedEmails.has(threadEmail.id)}
+					>
+						{#if expandedEmails.has(threadEmail.id)}
+							<ChevronDown class="h-4 w-4" />
+						{:else}
+							<ChevronRight class="h-4 w-4" />
+						{/if}
+						<div class="flex flex-1 items-center justify-between">
+							<div class="flex items-center gap-2">
+								<div
+									class={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${getRandomColor(threadEmail.from_address)}`}
+								>
+									<span class="text-xs font-medium">
+										{getInitials(
+											threadEmail.from_address.split('#')[0].includes('.')
+												? threadEmail.from_address.split('#')[0].split('.').join(' ')
+												: threadEmail.from_address.split('#')[0]
+										)}</span
+									>
+								</div>
+								<span class="font-medium">{threadEmail.from_address}</span>
+								<span class="text-muted-foreground text-sm">
+									{formatDate(threadEmail.sent_at)}
+								</span>
+							</div>
+						</div>
+					</button>
+
+					{#if expandedEmails.has(threadEmail.id)}
+						<div class="mt-4 pl-6">
+							{#if threadEmail.content_type === 'text/html'}
+								{@html getSanitizedContent(threadEmail, mode.current ?? 'light')}
+							{:else}
+								<div class="whitespace-pre-wrap">{threadEmail.body || ''}</div>
+							{/if}
+						</div>
+					{/if}
+				</div>
+			{/each}
+		</div>
+
+		<!-- REPLY BOX AT BOTTOM -->
+		<div class="border-t p-4">
+			{#if isReplying}
+				<div class=" border-input/50 focus-within:border-primary flex flex-col rounded-lg border-2">
+					<textarea
+						bind:value={replyText}
+						id="reply-textarea"
+						class="bg-background placeholder:text-muted-foreground min-h-[120px] w-full resize-none rounded-t-lg px-3.5 py-3 text-base focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+						placeholder="Write your reply..."
+					></textarea>
+
+					<div
+						class="bg-muted/50 border-input/50 flex items-center gap-2 rounded-b-lg border-t-2 p-2"
+					>
+						<Button
+							size="sm"
+							class="transition-colors"
+							onclick={handleSendReply}
+							disabled={!replyText.trim()}
+						>
+							<Send class="h-4 w-4" />
+							Send
+						</Button>
+
+						<Tooltip.Root>
+							<Tooltip.Trigger>
+								<button
+									class="relative flex h-8 w-8 items-center justify-center rounded-md transition-colors {htmlMode
+										? 'bg-primary/10 text-primary'
+										: 'text-muted-foreground hover:bg-muted'}"
+									onclick={() => (htmlMode = !htmlMode)}
+								>
+									<CodeXml class="h-4 w-4" />
+									<span class="sr-only">HTML Mode</span>
+								</button>
+							</Tooltip.Trigger>
+							<Tooltip.Content side="bottom">HTML Mode</Tooltip.Content>
+						</Tooltip.Root>
+					</div>
+				</div>
 			{:else}
-				<div class="whitespace-pre-wrap">{email.body || ''}</div>
+				<Button
+					class="hover:border-input hover:bg-muted/20 w-full transition-colors"
+					size="lg"
+					variant="outline"
+					onclick={handleReplyClick}
+				>
+					<Reply class="mr-2 h-5 w-5" />
+					Reply to this conversation
+				</Button>
 			{/if}
 		</div>
 	</div>

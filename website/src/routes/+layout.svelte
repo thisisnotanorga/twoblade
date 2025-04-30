@@ -10,6 +10,7 @@
 	import { page } from '$app/state';
 	import EmailClassificationButtons from '$lib/components/self/EmailClassificationButtons.svelte';
 
+	
 	let { children, data } = $props();
 
 	$effect(() => {

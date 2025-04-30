@@ -2,7 +2,6 @@
 	import {
 		Square,
 		CheckSquare,
-		Calendar,
 		Inbox,
 		TagsIcon,
 		MessagesSquare,
@@ -325,7 +324,10 @@
 			<Resizable.Handle withHandle />
 			<Resizable.Pane>
 				<div class="h-full border-l">
-					<EmailViewer email={selectedEmail} onClose={() => (selectedEmail = null)} />
+					<EmailViewer 
+						email={selectedEmail} 
+						onClose={() => (selectedEmail = null)}
+					/>
 				</div>
 			</Resizable.Pane>
 		{/if}
