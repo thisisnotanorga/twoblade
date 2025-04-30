@@ -75,7 +75,9 @@ CREATE TABLE
         scheduled_at TIMESTAMP
         WITH
             TIME ZONE DEFAULT NULL,
-        classification email_classification DEFAULT 'primary'
+        classification email_classification DEFAULT 'primary',
+        reply_to_id INTEGER REFERENCES emails(id),
+        thread_id INTEGER REFERENCES emails(id)
     );
 
 CREATE INDEX idx_emails_from ON emails (from_address);
@@ -83,6 +85,8 @@ CREATE INDEX idx_emails_from ON emails (from_address);
 CREATE INDEX idx_emails_to ON emails (to_address);
 
 CREATE INDEX idx_emails_status ON emails (status);
+
+CREATE INDEX idx_emails_thread_id ON emails(thread_id);
 
 CREATE TABLE
     email_stars (

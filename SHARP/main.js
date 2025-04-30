@@ -47,17 +47,17 @@ const KEYWORDS = {
 
 const verifyUser = (u, d) =>
     sql`SELECT * FROM users WHERE username=${u} AND domain=${d}`.then(r => r[0])
-const logEmail = (fa, fd, ta, td, s, b, ct = 'text/plain', hb = null, st = 'pending', sa = null) => {
+const logEmail = (fa, fd, ta, td, s, b, ct = 'text/plain', hb = null, st = 'pending', sa = null, rid = null, tid = null) => {
     const classification = classifyEmail(s, b, hb);
     return sql`
         INSERT INTO emails (
             from_address, from_domain, to_address, to_domain, 
             subject, body, content_type, html_body, status, 
-            scheduled_at, classification
+            scheduled_at, classification, reply_to_id, thread_id
         ) 
         VALUES (
             ${fa}, ${fd}, ${ta}, ${td}, ${s}, ${b}, ${ct}, 
-            ${hb}, ${st}, ${sa}, ${classification}
+            ${hb}, ${st}, ${sa}, ${classification}, ${rid}, ${tid}
         ) 
         RETURNING id
     `;
@@ -387,19 +387,23 @@ app.use(cors(), express.json())
 app.post('/api/send', validateAuthToken, async (req, res) => {
     let logEntry;
     try {
-        const { from, to, subject, body, content_type = 'text/plain', html_body, scheduled_at } = req.body;
+        const { 
+            from, to, subject, body, content_type = 'text/plain', 
+            html_body, scheduled_at, reply_to_id, thread_id 
+        } = req.body;
+        
         const fp_ = parseSharpAddress(from);
         const tp_ = parseSharpAddress(to);
 
         // If scheduled, save with scheduled status
         if (scheduled_at) {
-            logEntry = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'scheduled', scheduled_at);
+            logEntry = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'scheduled', scheduled_at, reply_to_id, thread_id);
             return res.json({ success: true, scheduled: true, id: logEntry[0]?.id });
         }
 
         // Local delivery: insert once with status 'sent' and return immediately
         if (tp_.domain === DOMAIN) {
-            await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'sent');
+            await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'sent', null, reply_to_id, thread_id);
             return res.json({ success: true });
         }
 
@@ -424,11 +428,15 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
             console.log('Remote server validation successful');
         } catch (e) {
             console.error('Remote server validation failed:', e);
-            await logEmail(from, fp.domain, to, tp.domain, subject, body, content_type, html_body, 'failed')
+            await logEmail(from, fp.domain, to, tp.domain, subject, body, content_type, html_body, 'failed', null, reply_to_id, thread_id)
             throw new Error(`Invalid destination: ${e.message}`)
         }
 
-        logEntry = await logEmail(from, fp.domain, to, tp.domain, subject, body, content_type, html_body, 'sending')
+        logEntry = await logEmail(
+            from, fp.domain, to, tp.domain, subject, body, 
+            content_type, html_body, 'sending', scheduled_at,
+            reply_to_id, thread_id
+        );
         const id = logEntry[0]?.id
         console.log('Created email log entry with ID:', id);
 
