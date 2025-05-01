@@ -3,6 +3,13 @@ export type EmailContentType = 'text/plain' | 'text/html';
 
 export type EmailClassification = 'primary' | 'promotions' | 'social' | 'forums' | 'updates';
 
+export interface EmailAttachment {
+    key: string;
+    filename: string;
+    size: number;
+    type: string;
+}
+
 export interface Email {
     id: string;
     from_address: string;
@@ -21,6 +28,7 @@ export interface Email {
     classification: EmailClassification;
     reply_to_id?: string | null;  // ID of email this is replying to
     thread_id?: string | null;    // ID of the root email in this thread
+    attachments: EmailAttachment[];
 }
 
 export interface Draft {

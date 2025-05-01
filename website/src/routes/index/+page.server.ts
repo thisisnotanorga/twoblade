@@ -29,8 +29,20 @@ export const load: PageServerLoad = async ({ locals }) => {
                     AND es.user_email = ${userEmail}::text 
                 ) as starred,
                 COALESCE(e.thread_id::text, e.id::text) as effective_thread_id, 
-                ROW_NUMBER() OVER(PARTITION BY COALESCE(e.thread_id::text, e.id::text) ORDER BY e.sent_at DESC) as rn 
+                ROW_NUMBER() OVER(PARTITION BY COALESCE(e.thread_id::text, e.id::text) ORDER BY e.sent_at DESC) as rn,
+                COALESCE(
+                    array_agg(
+                        json_build_object(
+                            'key', a.key,
+                            'filename', a.filename,
+                            'size', a.size,
+                            'type', a.type
+                        )
+                    ) FILTER (WHERE a.key IS NOT NULL),
+                    ARRAY[]::json[]
+                ) as attachments
             FROM emails e 
+            LEFT JOIN attachments a ON a.email_id = e.id
             WHERE 
                 (e.to_address = ${userEmail}::text OR e.from_address = ${userEmail}::text) 
                 AND e.status = 'sent'
@@ -44,6 +56,7 @@ export const load: PageServerLoad = async ({ locals }) => {
                 )
                 -- only rank emails belonging to threads where the user received something
                 AND COALESCE(e.thread_id::text, e.id::text) IN (SELECT thread_id FROM RelevantThreads)
+            GROUP BY e.id, e.sent_at
         )
         SELECT * 
         FROM RankedEmails

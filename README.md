@@ -18,3 +18,24 @@ SHARP's HTML allows for reactive styling:
 
 <!-- Available operators: $DARK, $LIGHT -->
 ```
+
+## Attachments Setup
+```bash
+wget https://github.com/Backblaze/B2_Command_Line_Tool/releases/latest/download/b2-linux -O "b2"
+chmod +x b2
+./b2 account authorize
+./b2 bucket update --cors-rules '[
+  {
+    "corsRuleName": "allowS3PutFromLocalhost",
+    "allowedOrigins": ["http://localhost:5173", "REPLACE_ME_WITH_PUBLIC_DOMAIN"],
+    "allowedOperations": [
+      "s3_put",
+      "s3_get"
+    ],
+    "allowedHeaders": ["*"],
+    "exposeHeaders": ["ETag", "x-amz-request-id"],
+    "maxAgeSeconds": 3600
+  }
+]' REPLACE_ME_WITH_BUCKET_NAME
+```
+- Note to replace `REPLACE_ME_WITH_PUBLIC_DOMAIN` and `REPLACE_ME_WITH_BUCKET_NAME`

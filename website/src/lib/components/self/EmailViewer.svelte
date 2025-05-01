@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { X, Reply, Send, CodeXml, ChevronDown, ChevronRight } from 'lucide-svelte';
+	import { X, Reply, Send, CodeXml, ChevronDown, ChevronRight, FileDown } from 'lucide-svelte';
 	import { USER_DATA } from '$lib/stores/user';
 	import type { Email, EmailContentType } from '$lib/types/email';
 	import {
@@ -14,6 +14,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { PUBLIC_DOMAIN } from '$env/static/public';
 	import { getInitials, getRandomColor } from '$lib/utils';
+	import Attachment from './Attachment.svelte';
 
 	let { email, onClose } = $props<{
 		email: Email | null;
@@ -26,6 +27,14 @@
 	let threadEmails = $state<Email[]>([]);
 	let expandedEmails = $state(new Set<string>());
 	let replyRecipient = $state('');
+	let attachments = $state<
+		Array<{
+			key: string;
+			filename: string;
+			size: number;
+			type: string;
+		}>
+	>([]);
 
 	const sanitizeConfig: Config = {
 		ALLOWED_TAGS: [...ALLOWED_HTML_TAGS],
@@ -132,7 +141,13 @@
 			content_type: htmlMode ? 'text/html' : 'text/plain',
 			html_body: htmlMode ? replyText : null,
 			reply_to_id: email.id,
-			thread_id: email.thread_id || email.id
+			thread_id: email.thread_id || email.id,
+			attachments: attachments.map((a) => ({
+				key: a.key,
+				filename: a.filename,
+				size: a.size,
+				type: a.type
+			}))
 		};
 
 		try {
@@ -168,13 +183,15 @@
 					starred: false,
 					classification: 'primary',
 					status: 'sent',
-					error_message: null
+					error_message: null,
+					attachments: emailData.attachments
 				};
 
 				threadEmails = [...threadEmails, newEmail];
 				expandedEmails = new Set([...expandedEmails, tempId]);
 				isReplying = false;
 				replyText = '';
+				attachments = [];
 
 				await loadThreadEmails(email);
 			} else {
@@ -301,6 +318,23 @@
 			minute: '2-digit'
 		});
 	}
+
+	function handleAttachment(key: string, filename: string, size: number, type: string) {
+		attachments = [...attachments, { key, filename, size, type }];
+	}
+
+	function formatFileSize(bytes: number) {
+		const units = ['B', 'KB', 'MB', 'GB'];
+		let size = bytes;
+		let unit = 0;
+
+		while (size >= 1024 && unit < units.length - 1) {
+			size /= 1024;
+			unit++;
+		}
+
+		return `${size.toFixed(1)} ${units[unit]}`;
+	}
 </script>
 
 {#if email}
@@ -358,6 +392,29 @@
 							{:else}
 								<div class="whitespace-pre-wrap">{threadEmail.body || ''}</div>
 							{/if}
+
+							{#if threadEmail.attachments?.length}
+								<div class="mt-4">
+									<div class="flex flex-wrap gap-2">
+										{#each threadEmail.attachments as attachment}
+											<a
+												href={`/api/attachment?key=${attachment.key}`}
+												class="hover:bg-muted inline-flex items-center gap-2 rounded-md border px-3 py-1.5"
+												target="_blank"
+												rel="noopener noreferrer"
+											>
+												<FileDown class="h-4 w-4" />
+												<div class="flex flex-col">
+													<span class="text-sm font-medium">{attachment.filename}</span>
+													<span class="text-muted-foreground text-xs">
+														{formatFileSize(attachment.size)}
+													</span>
+												</div>
+											</a>
+										{/each}
+									</div>
+								</div>
+							{/if}
 						</div>
 					{/if}
 				</div>
@@ -367,42 +424,48 @@
 		<!-- REPLY BOX AT BOTTOM -->
 		<div class="border-t p-4">
 			{#if isReplying}
-				<div class=" border-input/50 focus-within:border-primary flex flex-col rounded-lg border-2">
-					<textarea
-						bind:value={replyText}
-						id="reply-textarea"
-						class="bg-background placeholder:text-muted-foreground min-h-[120px] w-full resize-none rounded-t-lg px-3.5 py-3 text-base focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-						placeholder="Write your reply..."
-					></textarea>
-
+				<div class="flex flex-col gap-4">
 					<div
-						class="bg-muted/50 border-input/50 flex items-center gap-2 rounded-b-lg border-t-2 p-2"
+						class=" border-input/50 focus-within:border-primary flex flex-col rounded-lg border-2"
 					>
-						<Button
-							size="sm"
-							class="transition-colors"
-							onclick={handleSendReply}
-							disabled={!replyText.trim()}
-						>
-							<Send class="h-4 w-4" />
-							Send
-						</Button>
+						<textarea
+							bind:value={replyText}
+							id="reply-textarea"
+							class="bg-background placeholder:text-muted-foreground min-h-[120px] w-full resize-none rounded-t-lg px-3.5 py-3 text-base focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+							placeholder="Write your reply..."
+						></textarea>
 
-						<Tooltip.Root>
-							<Tooltip.Trigger>
-								<button
-									class="relative flex h-8 w-8 items-center justify-center rounded-md transition-colors {htmlMode
-										? 'bg-primary/10 text-primary'
-										: 'text-muted-foreground hover:bg-muted'}"
-									onclick={() => (htmlMode = !htmlMode)}
-								>
-									<CodeXml class="h-4 w-4" />
-									<span class="sr-only">HTML Mode</span>
-								</button>
-							</Tooltip.Trigger>
-							<Tooltip.Content side="bottom">HTML Mode</Tooltip.Content>
-						</Tooltip.Root>
+						<div
+							class="bg-muted/50 border-input/50 flex items-center gap-2 rounded-b-lg border-t-2 p-2"
+						>
+							<Button
+								size="sm"
+								class="transition-colors"
+								onclick={handleSendReply}
+								disabled={!replyText.trim()}
+							>
+								<Send class="h-4 w-4" />
+								Send
+							</Button>
+
+							<Tooltip.Root>
+								<Tooltip.Trigger>
+									<button
+										class="relative flex h-8 w-8 items-center justify-center rounded-md transition-colors {htmlMode
+											? 'bg-primary/10 text-primary'
+											: 'text-muted-foreground hover:bg-muted'}"
+										onclick={() => (htmlMode = !htmlMode)}
+									>
+										<CodeXml class="h-4 w-4" />
+										<span class="sr-only">HTML Mode</span>
+									</button>
+								</Tooltip.Trigger>
+								<Tooltip.Content side="bottom">HTML Mode</Tooltip.Content>
+							</Tooltip.Root>
+						</div>
 					</div>
+
+					<Attachment onAttach={handleAttachment} />
 				</div>
 			{:else}
 				<Button

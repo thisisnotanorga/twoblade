@@ -30,7 +30,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
             html_body, 
             scheduled_at = null,
             reply_to_id = null,
-            thread_id = null
+            thread_id = null,
+            attachments = []
         } = emailData;
 
         const apiUrl = `https://${PUBLIC_DOMAIN}/api/send`;
@@ -44,7 +45,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
             body: JSON.stringify({ 
                 from, to, subject, body, 
                 content_type, html_body, scheduled_at,
-                reply_to_id, thread_id
+                reply_to_id, thread_id,
+                attachments
             })
         });
 

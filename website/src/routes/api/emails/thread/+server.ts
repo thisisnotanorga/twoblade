@@ -24,13 +24,26 @@ export const GET: RequestHandler = async ({ url, locals }) => {
                     SELECT 1 FROM email_stars es 
                     WHERE es.email_id = e.id 
                     AND es.user_email = ${userEmail}
-                ) as starred
+                ) as starred,
+                COALESCE(
+                    array_agg(
+                        json_build_object(
+                            'key', a.key,
+                            'filename', a.filename,
+                            'size', a.size,
+                            'type', a.type
+                        )
+                    ) FILTER (WHERE a.key IS NOT NULL),
+                    ARRAY[]::json[]
+                ) as attachments
             FROM emails e 
+            LEFT JOIN attachments a ON a.email_id = e.id
             WHERE (e.thread_id::text = ${threadIdParam} OR e.id::text = ${threadIdParam})
               AND (e.to_address = ${userEmail} OR e.from_address = ${userEmail})
               AND e.status = 'sent' -- Only show sent emails in thread view
               AND (e.snooze_until IS NULL OR e.snooze_until <= CURRENT_TIMESTAMP)
               AND (e.scheduled_at IS NULL OR e.scheduled_at <= CURRENT_TIMESTAMP)
+            GROUP BY e.id, e.sent_at
             ORDER BY e.sent_at ASC;
         `;
 
