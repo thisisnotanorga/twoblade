@@ -398,6 +398,7 @@ app.use(cors(), express.json())
 
 app.post('/api/send', validateAuthToken, async (req, res) => {
     let logEntry;
+    let id;
     try {
         const {
             from, to, subject, body, content_type = 'text/plain',
@@ -411,21 +412,32 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
         // If scheduled, save with scheduled status
         if (scheduled_at) {
             logEntry = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'scheduled', scheduled_at, reply_to_id, thread_id);
-            return res.json({ success: true, scheduled: true, id: logEntry[0]?.id });
+            id = logEntry[0]?.id;
+
+            if (id && attachments.length > 0) {
+                await sql`
+                    UPDATE attachments 
+                    SET email_id = ${id},
+                        status = 'scheduled' 
+                    WHERE key = ANY(${attachments})
+                `;
+            }
+            return res.json({ success: true, scheduled: true, id });
         }
 
         // Local delivery: insert once with status 'sent' and return immediately
         if (tp_.domain === DOMAIN) {
             const result = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'sent', null, reply_to_id, thread_id);
-            if (attachments.length > 0) {
+            id = result[0]?.id;
+            if (id && attachments.length > 0) {
                 await sql`
                     UPDATE attachments 
-                    SET email_id = ${result[0].id},
+                    SET email_id = ${id},
                         status = 'sent'
                     WHERE key = ANY(${attachments})
                 `;
             }
-            return res.json({ success: true });
+            return res.json({ success: true, id });
         }
 
         // validate that the sender matches the authenticated user
@@ -458,8 +470,17 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
             content_type, html_body, 'sending', scheduled_at,
             reply_to_id, thread_id
         );
-        const id = logEntry[0]?.id
+        id = logEntry[0]?.id
         console.log('Created email log entry with ID:', id);
+
+        if (id && attachments.length > 0) {
+            await sql`
+                UPDATE attachments 
+                SET email_id = ${id},
+                    status = 'sending' 
+                WHERE key = ANY(${attachments})
+            `;
+        }
 
         try {
             console.log('Attempting to send email to remote server');
@@ -478,21 +499,30 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
 
             if (result.responses?.some(r => r.type === 'ERROR')) {
                 console.log('Remote server returned error response');
-                if (id) await sql`UPDATE emails SET status='rejected' WHERE id=${id}`
+                if (id) {
+                    await sql`UPDATE emails SET status='rejected' WHERE id=${id}`;
+                    await sql`UPDATE attachments SET status='rejected' WHERE email_id=${id}`;
+                }
                 return res.status(400).json({ success: false, message: 'Remote server rejected the email' })
             }
 
-            if (id) await sql`UPDATE emails SET status='sent' WHERE id=${id}`
-            return res.json(result)
+            if (id) {
+                await sql`UPDATE emails SET status='sent' WHERE id=${id}`;
+                await sql`UPDATE attachments SET status='sent' WHERE email_id=${id}`;
+            }
+            return res.json({ ...result, id });
         } catch (e) {
             console.error('Error sending email:', e);
+            if (id) {
+                await sql`UPDATE attachments SET status='failed' WHERE email_id=${id}`;
+            }
             throw e
         }
     } catch (e) {
         console.error('Request failed:', e);
-        const id = logEntry?.[0]?.id
         if (id) {
             await sql`UPDATE emails SET status='failed', error_message=${e.message} WHERE id=${id}`
+            await sql`UPDATE attachments SET status='failed' WHERE email_id=${id}`;
         }
         return res.status(400).json({ success: false, message: e.message })
     }
