@@ -23,7 +23,7 @@
     --destructive: 356.30 90.56% 54.31%;
     --destructive-foreground: 0 0% 100%;
     --ring: 202.82 89.12% 53.14%;
-    --radius: 1.3rem; /* Updated radius */
+    --radius: 1.3rem;
     --sidebar-background: 180 6.67% 97.06%;
     --sidebar-foreground: 210 25% 7.84%;
     --sidebar-primary: 203.89 88.28% 53.14%;
@@ -32,20 +32,6 @@
     --sidebar-accent-foreground: 203.89 88.28% 53.14%;
     --sidebar-border: 205.00 25.00% 90.59%;
     --sidebar-ring: 202.82 89.12% 53.14%;
-
-    --shadow-2xs: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow-xs: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow-sm: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00),
-      0px 1px 2px -1px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00),
-      0px 1px 2px -1px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow-md: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00),
-      0px 2px 4px -1px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow-lg: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00),
-      0px 4px 6px -1px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow-xl: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00),
-      0px 8px 10px -1px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow-2xl: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00);
   }
 
   .dark {
@@ -77,20 +63,6 @@
     --sidebar-accent-foreground: 203.77 87.60% 52.55%;
     --sidebar-border: 205.71 15.79% 26.08%;
     --sidebar-ring: 202.82 89.12% 53.14%;
-
-    --shadow-2xs: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow-xs: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow-sm: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00),
-      0px 1px 2px -1px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00),
-      0px 1px 2px -1px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow-md: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00),
-      0px 2px 4px -1px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow-lg: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00),
-      0px 4px 6px -1px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow-xl: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00),
-      0px 8px 10px -1px hsl(202.82 89.12% 53.14% / 0.00);
-    --shadow-2xl: 0px 2px 0px 0px hsl(202.82 89.12% 53.14% / 0.00);
   }
 }
 

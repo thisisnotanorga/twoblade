@@ -15,6 +15,13 @@
 	import { PUBLIC_DOMAIN } from '$env/static/public';
 	import { getInitials, getRandomColor } from '$lib/utils';
 	import Attachment from './Attachment.svelte';
+	import ImagePreview from './ImagePreview.svelte';
+
+	const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+    
+    function isImageAttachment(type: string): boolean {
+        return IMAGE_TYPES.includes(type);
+    }
 
 	let { email, onClose } = $props<{
 		email: Email | null;
@@ -395,22 +402,30 @@
 
 							{#if threadEmail.attachments?.length}
 								<div class="mt-4">
-									<div class="flex flex-wrap gap-2">
+									<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
 										{#each threadEmail.attachments as attachment}
-											<a
-												href={`/api/attachment?key=${attachment.key}`}
-												class="hover:bg-muted inline-flex items-center gap-2 rounded-md border px-3 py-1.5"
-												target="_blank"
-												rel="noopener noreferrer"
-											>
-												<FileDown class="h-4 w-4" />
-												<div class="flex flex-col">
-													<span class="text-sm font-medium">{attachment.filename}</span>
-													<span class="text-muted-foreground text-xs">
-														{formatFileSize(attachment.size)}
-													</span>
-												</div>
-											</a>
+											{#if isImageAttachment(attachment.type)}
+												<ImagePreview 
+													url={`/api/attachment?key=${attachment.key}`}
+													filename={attachment.filename}
+													filesize={attachment.size}
+												/>
+											{:else}
+												<a
+													href={`/api/attachment?key=${attachment.key}`}
+													class="hover:bg-muted inline-flex items-center gap-2 rounded-md border px-3 py-1.5"
+													target="_blank"
+													rel="noopener noreferrer"
+												>
+													<FileDown class="h-4 w-4" />
+													<div class="flex flex-col">
+														<span class="text-sm font-medium">{attachment.filename}</span>
+														<span class="text-muted-foreground text-xs">
+															{formatFileSize(attachment.size)}
+														</span>
+													</div>
+												</a>
+											{/if}
 										{/each}
 									</div>
 								</div>

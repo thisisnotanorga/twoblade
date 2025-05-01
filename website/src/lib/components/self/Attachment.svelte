@@ -3,6 +3,7 @@
     import { Progress } from '$lib/components/ui/progress';
     import { Paperclip, X, Upload } from 'lucide-svelte';
     import { Input } from '$lib/components/ui/input';
+    import ImagePreview from './ImagePreview.svelte';
 
     const ALLOWED_TYPES = [
         'application/pdf',
@@ -16,6 +17,8 @@
 
     const MAX_FILES = 10;
     const MAX_SIZE = 25 * 1024 * 1024; // 25MB
+
+    const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
 
     type FileUpload = {
         file: File;
@@ -54,14 +57,21 @@
             return;
         }
 
-        uploads = [
-            ...uploads,
-            ...newFiles.map(file => ({
-                file,
-                progress: 0,
-                status: 'pending' as const
-            }))
-        ];
+        const newUploads = newFiles.map(file => ({
+            file,
+            progress: 0,
+            status: 'pending' as const
+        }));
+
+        uploads = [...uploads, ...newUploads];
+
+        // Auto-upload images
+        newUploads.forEach((upload, index) => {
+            if (isImageFile(upload.file)) {
+                const totalIndex = uploads.length - newUploads.length + index;
+                uploadFile(uploads[totalIndex]);
+            }
+        });
 
         input.value = '';
     }
@@ -126,6 +136,10 @@
         if (!fileInputElement) return null;
         return fileInputElement
     }
+
+    function isImageFile(file: File): boolean {
+        return IMAGE_TYPES.includes(file.type);
+    }
 </script>
 
 <div class="flex flex-col gap-2">
@@ -149,28 +163,41 @@
     </Button>
 
     {#if uploads.length > 0}
-        <div class="flex flex-col gap-2">
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
             {#each uploads as upload, i}
-                <div class="border-input flex items-center gap-2 rounded border p-2">
-                    <div class="flex-1">
-                        <div class="flex items-center justify-between">
-                            <span class="text-sm font-medium">{upload.file.name}</span>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                class="h-6 w-6"
-                                onclick={() => removeUpload(i)}
-                            >
-                                <X class="h-4 w-4" />
-                            </Button>
+                <div class="relative">
+                    {#if isImageFile(upload.file)}
+                        <ImagePreview file={upload.file} />
+                        {#if upload.status === 'uploading'}
+                            <div class="absolute inset-0 flex items-center justify-center bg-black/30 backdrop-blur-[1px] rounded-xl">
+                                <div class="text-xs font-medium text-white">
+                                    {Math.round(upload.progress)}%
+                                </div>
+                            </div>
+                        {/if}
+                    {:else}
+                        <div class="border-input flex items-center gap-2 rounded border p-2">
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-medium">{upload.file.name}</span>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        class="h-6 w-6"
+                                        onclick={() => removeUpload(i)}
+                                    >
+                                        <X class="h-4 w-4" />
+                                    </Button>
+                                </div>
+                                <Progress value={upload.progress} class="h-1" />
+                            </div>
                         </div>
-                        <Progress value={upload.progress} class="h-1" />
-                    </div>
-                    {#if upload.status === 'pending'}
+                    {/if}
+                    {#if !isImageFile(upload.file) && upload.status === 'pending'}
                         <Button
                             variant="ghost"
                             size="icon"
-                            class="h-6 w-6"
+                            class="absolute right-2 top-2 h-6 w-6 bg-black/50 text-white hover:bg-black/70"
                             onclick={() => uploadFile(upload)}
                         >
                             <Upload class="h-4 w-4" />
