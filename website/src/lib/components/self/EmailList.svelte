@@ -1,13 +1,5 @@
 <script lang="ts">
-	import {
-		Square,
-		CheckSquare,
-		Inbox,
-		TagsIcon,
-		MessagesSquare,
-		Users,
-		Bell
-	} from 'lucide-svelte';
+	import { Square, CheckSquare, Inbox, TagsIcon, MessagesSquare, Users, Bell } from 'lucide-svelte';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { scale } from 'svelte/transition';
 	import Star from '$lib/components/self/icons/Star.svelte';
@@ -172,7 +164,7 @@
 						{#each emails as email (email.id)}
 							<button
 								type="button"
-								class={`hover:bg-accent hover:text-accent-foreground flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-colors ${
+								class={`hover:bg-accent hover:text-accent-foreground flex flex-col items-start gap-2 rounded-lg p-3 text-left text-sm transition-colors ${
 									selectedEmails.has(email.id) ? 'bg-accent text-accent-foreground' : ''
 								} ${selectedEmail?.id === email.id ? 'bg-accent text-accent-foreground' : ''}`}
 								aria-label={`Email from ${email.from_address} with subject ${email.subject}`}
@@ -314,6 +306,9 @@
 									</div>
 								{/if}
 							</button>
+							{#if email.id !== emails[emails.length - 1].id}
+								<div class="bg-border/50 mx-4 h-px"></div>
+							{/if}
 						{/each}
 					{/if}
 				</div>
@@ -324,10 +319,7 @@
 			<Resizable.Handle withHandle />
 			<Resizable.Pane>
 				<div class="h-full border-l">
-					<EmailViewer 
-						email={selectedEmail} 
-						onClose={() => (selectedEmail = null)}
-					/>
+					<EmailViewer email={selectedEmail} onClose={() => (selectedEmail = null)} />
 				</div>
 			</Resizable.Pane>
 		{/if}
