@@ -403,8 +403,10 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
         const {
             from, to, subject, body, content_type = 'text/plain',
             html_body, scheduled_at, reply_to_id, thread_id,
-            attachments = []
+            attachments = [] // attachments is expected to be [{ key: '...', ... }, ...]
         } = req.body;
+
+        const attachmentKeys = attachments.map(att => att.key).filter(Boolean);
 
         const fp_ = parseSharpAddress(from);
         const tp_ = parseSharpAddress(to);
@@ -414,12 +416,13 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
             logEntry = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'scheduled', scheduled_at, reply_to_id, thread_id);
             id = logEntry[0]?.id;
 
-            if (id && attachments.length > 0) {
+            if (id && attachmentKeys.length > 0) {
+                console.log(`[Scheduled] Linking ${attachmentKeys.length} attachments to email ID ${id}:`, attachmentKeys);
                 await sql`
                     UPDATE attachments 
                     SET email_id = ${id},
                         status = 'scheduled' 
-                    WHERE key = ANY(${attachments})
+                    WHERE key = ANY(${attachmentKeys}) 
                 `;
             }
             return res.json({ success: true, scheduled: true, id });
@@ -429,12 +432,13 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
         if (tp_.domain === DOMAIN) {
             const result = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'sent', null, reply_to_id, thread_id);
             id = result[0]?.id;
-            if (id && attachments.length > 0) {
+            if (id && attachmentKeys.length > 0) {
+                console.log(`[Local] Linking ${attachmentKeys.length} attachments to email ID ${id}:`, attachmentKeys);
                 await sql`
                     UPDATE attachments 
                     SET email_id = ${id},
                         status = 'sent'
-                    WHERE key = ANY(${attachments})
+                    WHERE key = ANY(${attachmentKeys})
                 `;
             }
             return res.json({ success: true, id });
@@ -449,7 +453,7 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
             });
         }
 
-        console.log('Received email request:', { from, to, subject, content_type });
+        console.log('Received email request:', { from, to, subject, content_type, attachmentCount: attachmentKeys.length });
 
         const fp = parseSharpAddress(from)
         const tp = parseSharpAddress(to)
@@ -473,12 +477,13 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
         id = logEntry[0]?.id
         console.log('Created email log entry with ID:', id);
 
-        if (id && attachments.length > 0) {
+        if (id && attachmentKeys.length > 0) {
+            console.log(`[Remote] Linking ${attachmentKeys.length} attachments to email ID ${id}:`, attachmentKeys);
             await sql`
                 UPDATE attachments 
                 SET email_id = ${id},
                     status = 'sending' 
-                WHERE key = ANY(${attachments})
+                WHERE key = ANY(${attachmentKeys})
             `;
         }
 
@@ -487,7 +492,7 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
             const result = await Promise.race([
                 sendEmailToRemoteServer({
                     from, to, subject, body, content_type, html_body,
-                    attachments
+                    attachments: attachmentKeys
                 }),
                 new Promise((_, r) => setTimeout(() => {
                     console.log('Email send operation timed out after 10 seconds');
@@ -501,20 +506,24 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
                 console.log('Remote server returned error response');
                 if (id) {
                     await sql`UPDATE emails SET status='rejected' WHERE id=${id}`;
-                    await sql`UPDATE attachments SET status='rejected' WHERE email_id=${id}`;
+                    if (attachmentKeys.length > 0) {
+                        await sql`UPDATE attachments SET status='rejected' WHERE key = ANY(${attachmentKeys})`;
+                    }
                 }
                 return res.status(400).json({ success: false, message: 'Remote server rejected the email' })
             }
 
             if (id) {
                 await sql`UPDATE emails SET status='sent' WHERE id=${id}`;
-                await sql`UPDATE attachments SET status='sent' WHERE email_id=${id}`;
+                if (attachmentKeys.length > 0) {
+                    await sql`UPDATE attachments SET status='sent' WHERE key = ANY(${attachmentKeys})`;
+                }
             }
             return res.json({ ...result, id });
         } catch (e) {
             console.error('Error sending email:', e);
-            if (id) {
-                await sql`UPDATE attachments SET status='failed' WHERE email_id=${id}`;
+            if (id && attachmentKeys.length > 0) {
+                await sql`UPDATE attachments SET status='failed' WHERE key = ANY(${attachmentKeys})`;
             }
             throw e
         }
@@ -522,7 +531,10 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
         console.error('Request failed:', e);
         if (id) {
             await sql`UPDATE emails SET status='failed', error_message=${e.message} WHERE id=${id}`
-            await sql`UPDATE attachments SET status='failed' WHERE email_id=${id}`;
+            const attachmentKeys = req.body.attachments?.map(att => att.key).filter(Boolean) || [];
+            if (attachmentKeys.length > 0) {
+                await sql`UPDATE attachments SET status='failed' WHERE key = ANY(${attachmentKeys})`;
+            }
         }
         return res.status(400).json({ success: false, message: e.message })
     }
