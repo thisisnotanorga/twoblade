@@ -96,7 +96,12 @@
 				});
 
 				if (response.ok) {
-					emails[emailIndex] = { ...emails[emailIndex], read_at: new Date().toISOString() };
+					const updatedEmails = [...emails];
+					updatedEmails[emailIndex] = {
+						...updatedEmails[emailIndex],
+						read_at: new Date().toISOString()
+					};
+					emails = updatedEmails;
 				} else {
 					console.error('Failed to mark email as read via API');
 				}

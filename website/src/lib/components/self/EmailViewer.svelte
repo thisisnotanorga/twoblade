@@ -2,7 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { X, Reply, Send, CodeXml, ChevronDown, ChevronRight } from 'lucide-svelte';
 	import { USER_DATA } from '$lib/stores/user';
-	import type { Email } from '$lib/types/email';
+	import type { Email, EmailContentType } from '$lib/types/email';
 	import {
 		ALLOWED_HTML_TAGS,
 		ALLOWED_HTML_ATTRIBUTES,
@@ -25,6 +25,7 @@
 	let htmlMode = $state(false);
 	let threadEmails = $state<Email[]>([]);
 	let expandedEmails = $state(new Set<string>());
+	let replyRecipient = $state('');
 
 	const sanitizeConfig: Config = {
 		ALLOWED_TAGS: [...ALLOWED_HTML_TAGS],
@@ -72,15 +73,127 @@
 			const response = await fetch(`/api/emails/thread?id=${email.thread_id || email.id}`);
 			if (response.ok) {
 				const { emails } = await response.json();
-				threadEmails = emails.sort(
+				const sortedEmails = emails.sort(
 					(a: Email, b: Email) => new Date(a.sent_at).getTime() - new Date(b.sent_at).getTime()
 				);
+				threadEmails = sortedEmails;
 
-				expandedEmails = new Set([email.id]);
+				const initialEmailIndex = sortedEmails.findIndex((e: Email) => e.id === email.id);
+
+				const newExpandedSet = new Set<string>();
+				if (initialEmailIndex !== -1) {
+					for (let i = initialEmailIndex; i < sortedEmails.length; i++) {
+						newExpandedSet.add(sortedEmails[i].id);
+					}
+				} else {
+					if (email) {
+						newExpandedSet.add(email.id);
+					}
+					if (sortedEmails.length > 0) {
+						newExpandedSet.add(sortedEmails[sortedEmails.length - 1].id);
+					}
+				}
+				expandedEmails = newExpandedSet;
 			}
 		} catch (error) {
 			console.error('Failed to load thread:', error);
 		}
+	}
+
+	function handleReplyClick() {
+		if (!email || !$USER_DATA) return;
+
+		const currentUserEmail = `${$USER_DATA.username}#${PUBLIC_DOMAIN}`;
+
+		if (email.from_address === currentUserEmail) {
+			replyRecipient = email.to_address;
+		} else {
+			replyRecipient = email.from_address;
+		}
+
+		if (!replyRecipient || !replyRecipient.includes('#')) {
+			console.error('Could not determine a valid recipient for the reply.', email);
+			return;
+		}
+
+		isReplying = true;
+	}
+
+	async function handleSendReply() {
+		if (!replyText.trim() || !email || !replyRecipient || !$USER_DATA) return;
+
+		const currentUserEmail = `${$USER_DATA.username}#${PUBLIC_DOMAIN}`;
+
+		const emailData = {
+			from: currentUserEmail,
+			to: replyRecipient,
+			subject: `Re: ${email.subject?.replace(/^Re:\s+/i, '')}` || '',
+			body: replyText,
+			content_type: htmlMode ? 'text/html' : 'text/plain',
+			html_body: htmlMode ? replyText : null,
+			reply_to_id: email.id,
+			thread_id: email.thread_id || email.id
+		};
+
+		try {
+			const response = await fetch('/api/mail', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(emailData)
+			});
+
+			if (response.ok) {
+				const { status, result } = await response.json();
+
+				if (status !== 'success' || !result?.success) {
+					console.error('Failed to send email via API:', { status, result });
+					return;
+				}
+
+				const tempId = crypto.randomUUID();
+				const newEmail: Email = {
+					id: tempId,
+					from_address: emailData.from,
+					to_address: emailData.to,
+					from_domain: emailData.from.split('#')[1] || '',
+					to_domain: emailData.to.split('#')[1] || '',
+					subject: emailData.subject,
+					body: emailData.body,
+					html_body: emailData.html_body,
+					content_type: emailData.content_type as EmailContentType,
+					sent_at: new Date().toISOString(),
+					thread_id: emailData.thread_id,
+					reply_to_id: emailData.reply_to_id,
+					read_at: new Date().toISOString(),
+					starred: false,
+					classification: 'primary',
+					status: 'sent',
+					error_message: null
+				};
+
+				threadEmails = [...threadEmails, newEmail];
+				expandedEmails = new Set([...expandedEmails, tempId]);
+				isReplying = false;
+				replyText = '';
+
+				await loadThreadEmails(email);
+			} else {
+				const errorData = await response.json();
+				console.error('Failed to send reply API error:', errorData);
+			}
+		} catch (error) {
+			console.error('Error sending reply fetch:', error);
+		}
+	}
+
+	function toggleExpanded(emailId: string) {
+		const newSet = new Set(expandedEmails);
+		if (newSet.has(emailId)) {
+			newSet.delete(emailId);
+		} else {
+			newSet.add(emailId);
+		}
+		expandedEmails = newSet;
 	}
 
 	$effect(() => {
@@ -160,13 +273,21 @@
 			);
 		}
 
-		if (email && !email.read_at) {
-			markAsRead(email.id);
+		if (email && !$USER_DATA) {
+			console.warn('Email prop updated but USER_DATA is not available yet.');
 		}
 
-		if (email) {
+		if (email && $USER_DATA) {
+			const currentUserEmail = `${$USER_DATA.username}#${PUBLIC_DOMAIN}`;
+			if (email.to_address === currentUserEmail && !email.read_at) {
+				markAsRead(email.id);
+			}
 			loadThreadEmails(email);
 		}
+
+		isReplying = false;
+		replyRecipient = '';
+		replyText = '';
 	});
 
 	function formatDate(date: string | null) {
@@ -179,53 +300,6 @@
 			hour: '2-digit',
 			minute: '2-digit'
 		});
-	}
-
-	function handleReplyClick() {
-		isReplying = true;
-	}
-
-	async function handleSendReply() {
-		if (!replyText.trim() || !email) return;
-
-		const emailData = {
-			from: $USER_DATA!.username + '#' + PUBLIC_DOMAIN,
-			to: email.from_address,
-			subject: `Re: ${email.subject?.replace(/^Re:\s+/i, '')}` || '',
-			body: replyText,
-			content_type: htmlMode ? 'text/html' : 'text/plain',
-			html_body: htmlMode ? replyText : null,
-			reply_to_id: email.id,
-			thread_id: email.thread_id || email.id
-		};
-
-		try {
-			const response = await fetch('/api/mail', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(emailData)
-			});
-
-			if (response.ok) {
-				isReplying = false;
-				replyText = '';
-			} else {
-				const result = await response.json();
-				console.error('Failed to send reply:', result.message);
-			}
-		} catch (error) {
-			console.error('Failed to send reply:', error);
-		}
-	}
-
-	function toggleExpanded(emailId: string) {
-		const newSet = new Set(expandedEmails);
-		if (newSet.has(emailId)) {
-			newSet.delete(emailId);
-		} else {
-			newSet.add(emailId);
-		}
-		expandedEmails = newSet;
 	}
 </script>
 
@@ -257,7 +331,9 @@
 						<div class="flex flex-1 items-center justify-between">
 							<div class="flex items-center gap-2">
 								<div
-									class={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${getRandomColor(threadEmail.from_address)}`}
+									class={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${getRandomColor(
+										threadEmail.from_address
+									)}`}
 								>
 									<span class="text-xs font-medium">
 										{getInitials(
