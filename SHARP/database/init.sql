@@ -132,3 +132,18 @@ CREATE TABLE contacts (
 
 CREATE INDEX idx_contacts_user_email ON contacts(user_email);
 CREATE INDEX idx_contacts_email_address ON contacts(email_address);
+
+CREATE TABLE attachments (
+    id SERIAL PRIMARY KEY,
+    key TEXT NOT NULL UNIQUE,
+    filename TEXT NOT NULL,
+    size INTEGER NOT NULL CHECK (size <= 26214400), -- 25MB limit
+    type TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '48 hours'),
+    email_id INTEGER REFERENCES emails(id) ON DELETE SET NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+);
+
+CREATE INDEX idx_attachments_expires ON attachments(expires_at);
+CREATE INDEX idx_attachments_email ON attachments(email_id);

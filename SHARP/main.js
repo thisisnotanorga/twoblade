@@ -134,6 +134,7 @@ async function handleSharpMessage(socket, raw, state) {
                     state.body = cmd.body;
                     state.content_type = cmd.content_type || 'text/plain';
                     state.html_body = cmd.html_body || null;
+                    state.attachments = cmd.attachments || [];
                 } else if (cmd.type === 'END_DATA') {
                     await processEmail(state);
                     sendJSON(socket, { type: 'OK', message: 'Email processed' });
@@ -151,10 +152,19 @@ async function handleSharpMessage(socket, raw, state) {
     }
 }
 
-async function processEmail({ from, to, subject, body, content_type, html_body }) {
+async function processEmail({ from, to, subject, body, content_type, html_body, attachments = [] }) {
     const f = parseSharpAddress(from)
     const t = parseSharpAddress(to)
-    await logEmail(from, f.domain, to, t.domain, subject, body, content_type, html_body)
+    const emailResult = await logEmail(from, f.domain, to, t.domain, subject, body, content_type, html_body)
+
+    if (attachments.length > 0) {
+        await sql`
+            UPDATE attachments 
+            SET email_id = ${emailResult[0].id},
+                status = 'sent'
+            WHERE key = ANY(${attachments})
+        `
+    }
 }
 
 function classifyEmail(subject, body, htmlBody) {
@@ -257,7 +267,8 @@ async function sendEmailToRemoteServer(email) {
                     subject: email.subject,
                     body: email.body,
                     content_type: email.content_type,
-                    html_body: email.html_body
+                    html_body: email.html_body,
+                    attachments: email.attachments || []
                 },
                 { type: 'END_DATA' }
             ]
@@ -350,7 +361,8 @@ async function processScheduledEmails() {
                     subject: email.subject,
                     body: email.body,
                     content_type: email.content_type,
-                    html_body: email.html_body
+                    html_body: email.html_body,
+                    attachments: email.attachments || []
                 });
                 await sql`
             UPDATE emails
@@ -387,11 +399,12 @@ app.use(cors(), express.json())
 app.post('/api/send', validateAuthToken, async (req, res) => {
     let logEntry;
     try {
-        const { 
-            from, to, subject, body, content_type = 'text/plain', 
-            html_body, scheduled_at, reply_to_id, thread_id 
+        const {
+            from, to, subject, body, content_type = 'text/plain',
+            html_body, scheduled_at, reply_to_id, thread_id,
+            attachments = []
         } = req.body;
-        
+
         const fp_ = parseSharpAddress(from);
         const tp_ = parseSharpAddress(to);
 
@@ -403,7 +416,15 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
 
         // Local delivery: insert once with status 'sent' and return immediately
         if (tp_.domain === DOMAIN) {
-            await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'sent', null, reply_to_id, thread_id);
+            const result = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'sent', null, reply_to_id, thread_id);
+            if (attachments.length > 0) {
+                await sql`
+                    UPDATE attachments 
+                    SET email_id = ${result[0].id},
+                        status = 'sent'
+                    WHERE key = ANY(${attachments})
+                `;
+            }
             return res.json({ success: true });
         }
 
@@ -433,7 +454,7 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
         }
 
         logEntry = await logEmail(
-            from, fp.domain, to, tp.domain, subject, body, 
+            from, fp.domain, to, tp.domain, subject, body,
             content_type, html_body, 'sending', scheduled_at,
             reply_to_id, thread_id
         );
@@ -443,7 +464,10 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
         try {
             console.log('Attempting to send email to remote server');
             const result = await Promise.race([
-                sendEmailToRemoteServer({ from, to, subject, body, content_type, html_body }),
+                sendEmailToRemoteServer({
+                    from, to, subject, body, content_type, html_body,
+                    attachments
+                }),
                 new Promise((_, r) => setTimeout(() => {
                     console.log('Email send operation timed out after 10 seconds');
                     r(new Error('Connection timed out'))
