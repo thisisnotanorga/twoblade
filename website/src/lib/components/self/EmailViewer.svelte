@@ -13,15 +13,26 @@
 	import { mode } from 'mode-watcher';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { PUBLIC_DOMAIN } from '$env/static/public';
-	import { getInitials, getRandomColor } from '$lib/utils';
+	import { formatFileSize, getInitials, getRandomColor } from '$lib/utils';
 	import Attachment from './Attachment.svelte';
 	import ImagePreview from './ImagePreview.svelte';
 
 	const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
-    
-    function isImageAttachment(type: string): boolean {
-        return IMAGE_TYPES.includes(type);
-    }
+
+	function isImageAttachment(type: string): boolean {
+		return IMAGE_TYPES.includes(type);
+	}
+
+	function getFileNameParts(filename: string) {
+		const lastDotIndex = filename.lastIndexOf('.');
+		if (lastDotIndex === -1 || lastDotIndex === 0) {
+			return { name: filename, ext: '' };
+		}
+		return {
+			name: filename.slice(0, lastDotIndex),
+			ext: filename.slice(lastDotIndex + 1).toUpperCase()
+		};
+	}
 
 	let { email, onClose } = $props<{
 		email: Email | null;
@@ -329,19 +340,6 @@
 	function handleAttachment(key: string, filename: string, size: number, type: string) {
 		attachments = [...attachments, { key, filename, size, type }];
 	}
-
-	function formatFileSize(bytes: number) {
-		const units = ['B', 'KB', 'MB', 'GB'];
-		let size = bytes;
-		let unit = 0;
-
-		while (size >= 1024 && unit < units.length - 1) {
-			size /= 1024;
-			unit++;
-		}
-
-		return `${size.toFixed(1)} ${units[unit]}`;
-	}
 </script>
 
 {#if email}
@@ -405,7 +403,7 @@
 									<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
 										{#each threadEmail.attachments as attachment}
 											{#if isImageAttachment(attachment.type)}
-												<ImagePreview 
+												<ImagePreview
 													url={`/api/attachment?key=${attachment.key}`}
 													filename={attachment.filename}
 													filesize={attachment.size}
@@ -413,16 +411,26 @@
 											{:else}
 												<a
 													href={`/api/attachment?key=${attachment.key}`}
-													class="hover:bg-muted inline-flex items-center gap-2 rounded-md border px-3 py-1.5"
+													class="hover:bg-accent hover:text-accent-foreground inline-flex w-fit items-center gap-2 rounded-md border px-3 py-1.5 transition-colors"
 													target="_blank"
 													rel="noopener noreferrer"
 												>
 													<FileDown class="h-4 w-4" />
-													<div class="flex flex-col">
-														<span class="text-sm font-medium">{attachment.filename}</span>
-														<span class="text-muted-foreground text-xs">
-															{formatFileSize(attachment.size)}
-														</span>
+													<div class="min-w-0 flex-1">
+														{#if true}
+															{@const { name, ext } = getFileNameParts(attachment.filename)}
+															<div class="flex flex-col">
+																<div class="flex items-center">
+																	<span class="truncate text-sm font-medium">{name}</span>
+																	<span class="flex-shrink-0 text-sm font-medium"
+																		>.{ext.toLowerCase()}</span
+																	>
+																</div>
+																<span class="text-xs">
+																	{formatFileSize(attachment.size)}
+																</span>
+															</div>
+														{/if}
 													</div>
 												</a>
 											{/if}

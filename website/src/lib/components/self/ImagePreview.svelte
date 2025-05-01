@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { Download, FileDown } from 'lucide-svelte';
 	import { Badge } from '../ui/badge';
-    import { getDominantColor } from '$lib/utils/colors';
-    import { downloadFile } from '$lib/utils/download';
     import ImageViewer from './ImageViewer.svelte';
+	import { downloadFile, getDominantColor } from '$lib/utils';
 
 	let {
 		file = null,
@@ -140,7 +139,7 @@
             class="flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
             onclick={(e) => {
                 e.preventDefault();
-                e.stopPropagation(); // Keep stopPropagation to prevent dialog opening if somehow clicked
+                e.stopPropagation();
                 downloadFile(url || previewUrl, filename || 'image');
             }}
             aria-label={`Download ${filename || 'image'}`}

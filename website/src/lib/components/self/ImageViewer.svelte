@@ -1,7 +1,7 @@
 <script lang="ts">
     import { Dialog, DialogContent } from "$lib/components/ui/dialog";
+	import { downloadFile } from "$lib/utils";
     import { X, Download } from "lucide-svelte";
-    import { downloadFile } from '$lib/utils/download';
 
     let { 
         url, 
@@ -11,8 +11,8 @@
         open = $bindable() 
     } = $props<{
         url: string;
-        previewUrl: string; // Added previewUrl prop
-        dominantColor: string; // Added dominantColor prop
+        previewUrl: string;
+        dominantColor: string;
         filename: string;
         open?: boolean;
     }>();

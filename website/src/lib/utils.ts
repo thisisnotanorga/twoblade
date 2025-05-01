@@ -28,3 +28,49 @@ export function getRandomColor(name: string): string {
     const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[hash % colors.length];
 }
+
+export function formatFileSize(bytes: number) {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = bytes;
+    let unit = 0;
+
+    while (size >= 1024 && unit < units.length - 1) {
+        size /= 1024;
+        unit++;
+    }
+
+    return `${size.toFixed(1)} ${units[unit]}`;
+}
+
+export function getDominantColor(imgEl: HTMLImageElement): Promise<string> {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve('rgb(0, 0, 0)');
+
+        canvas.width = 1;
+        canvas.height = 1;
+
+        ctx.drawImage(imgEl, 0, 0, 1, 1);
+        const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+        
+        resolve(`rgb(${r}, ${g}, ${b})`);
+    });
+}
+
+export async function downloadFile(url: string, filename: string) {
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+        console.error('Download failed:', error);
+    }
+}
