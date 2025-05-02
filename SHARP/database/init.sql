@@ -77,7 +77,9 @@ CREATE TABLE
             TIME ZONE DEFAULT NULL,
         classification email_classification DEFAULT 'primary',
         reply_to_id INTEGER REFERENCES emails(id),
-        thread_id INTEGER REFERENCES emails(id)
+        thread_id INTEGER REFERENCES emails(id),
+        expires_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+        self_destruct BOOLEAN DEFAULT FALSE
     );
 
 CREATE INDEX idx_emails_from ON emails (from_address);

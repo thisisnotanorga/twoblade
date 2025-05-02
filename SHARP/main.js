@@ -24,6 +24,30 @@ setInterval(async () => {
     }
 }, 10000);
 
+setInterval(async () => {
+    try {
+        // First, clean up attachments for expired emails
+        await sql`
+            DELETE FROM attachments
+            WHERE email_id IN (
+                SELECT id FROM emails
+                WHERE expires_at < NOW()
+                AND expires_at IS NOT NULL
+            )
+        `;
+        // TODO: remove from S3 too
+        
+        // Then delete the expired emails
+        await sql`
+            DELETE FROM emails
+            WHERE expires_at < NOW()
+            AND expires_at IS NOT NULL
+        `;
+    } catch (error) {
+        console.error('Error cleaning up expired emails:', error);
+    }
+}, 10000);
+
 const PROTOCOL_VERSION = 'SHARP/1.0'
 
 const KEYWORDS = {
@@ -47,17 +71,19 @@ const KEYWORDS = {
 
 const verifyUser = (u, d) =>
     sql`SELECT * FROM users WHERE username=${u} AND domain=${d}`.then(r => r[0])
-const logEmail = (fa, fd, ta, td, s, b, ct = 'text/plain', hb = null, st = 'pending', sa = null, rid = null, tid = null) => {
+const logEmail = (fa, fd, ta, td, s, b, ct = 'text/plain', hb = null, st = 'pending', sa = null, rid = null, tid = null, ea = null, sd = false) => {
     const classification = classifyEmail(s, b, hb);
     return sql`
         INSERT INTO emails (
             from_address, from_domain, to_address, to_domain, 
             subject, body, content_type, html_body, status, 
-            scheduled_at, classification, reply_to_id, thread_id
+            scheduled_at, classification, reply_to_id, thread_id,
+            expires_at, self_destruct
         ) 
         VALUES (
             ${fa}, ${fd}, ${ta}, ${td}, ${s}, ${b}, ${ct}, 
-            ${hb}, ${st}, ${sa}, ${classification}, ${rid}, ${tid}
+            ${hb}, ${st}, ${sa}, ${classification}, ${rid}, ${tid},
+            ${ea}, ${sd}
         ) 
         RETURNING id
     `;
@@ -403,7 +429,7 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
         const {
             from, to, subject, body, content_type = 'text/plain',
             html_body, scheduled_at, reply_to_id, thread_id,
-            attachments = [] // attachments is expected to be [{ key: '...', ... }, ...]
+            attachments = [], expires_at = null, self_destruct = false
         } = req.body;
 
         const attachmentKeys = attachments.map(att => att.key).filter(Boolean);
@@ -413,7 +439,7 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
 
         // If scheduled, save with scheduled status
         if (scheduled_at) {
-            logEntry = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'scheduled', scheduled_at, reply_to_id, thread_id);
+            logEntry = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'scheduled', scheduled_at, reply_to_id, thread_id, expires_at, self_destruct);
             id = logEntry[0]?.id;
 
             if (id && attachmentKeys.length > 0) {
@@ -430,7 +456,7 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
 
         // Local delivery: insert once with status 'sent' and return immediately
         if (tp_.domain === DOMAIN) {
-            const result = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'sent', null, reply_to_id, thread_id);
+            const result = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'sent', null, reply_to_id, thread_id, expires_at, self_destruct);
             id = result[0]?.id;
             if (id && attachmentKeys.length > 0) {
                 console.log(`[Local] Linking ${attachmentKeys.length} attachments to email ID ${id}:`, attachmentKeys);
@@ -472,7 +498,7 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
         logEntry = await logEmail(
             from, fp.domain, to, tp.domain, subject, body,
             content_type, html_body, 'sending', scheduled_at,
-            reply_to_id, thread_id
+            reply_to_id, thread_id, expires_at, self_destruct
         );
         id = logEntry[0]?.id
         console.log('Created email log entry with ID:', id);
