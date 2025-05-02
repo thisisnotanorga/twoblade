@@ -286,10 +286,10 @@
 				<DateTimePicker date={scheduledDate} onChange={(date) => (scheduledDate = date)} />
 				<Button onclick={handleSubmit}>
 					{#if scheduledDate}
-						<Clock class="mr-2 h-4 w-4" />
+						<Clock class="h-4 w-4" />
 						Schedule
 					{:else}
-						<Send class="mr-2 h-4 w-4" />
+						<Send class="h-4 w-4" />
 						Send
 					{/if}
 				</Button>

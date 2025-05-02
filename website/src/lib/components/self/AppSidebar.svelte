@@ -21,6 +21,7 @@
 	import { currentTab } from '$lib/stores/navigation';
 	import Button from '../ui/button/button.svelte';
 	import ComposeEmail from '$lib/components/self/ComposeEmail.svelte';
+	import StorageUsageBar from './StorageUsageBar.svelte';
 
 	const data = {
 		navMain: [
@@ -128,6 +129,10 @@
 								</Sidebar.MenuButton>
 							</Sidebar.MenuItem>
 						{/each}
+
+						<Sidebar.MenuItem>
+							<StorageUsageBar />
+						</Sidebar.MenuItem>
 					{/if}
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton>

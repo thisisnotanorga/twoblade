@@ -19,7 +19,7 @@ export async function generatePresignedUrl(key: string, contentType: string): Pr
         ContentType: contentType
     });
 
-    return getSignedUrl(s3Client, command, { expiresIn: 3600 });
+    return getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
 }
 
 export async function deleteObject(key: string): Promise<void> {

@@ -147,3 +147,27 @@ CREATE TABLE attachments (
 
 CREATE INDEX idx_attachments_expires ON attachments(expires_at);
 CREATE INDEX idx_attachments_email ON attachments(email_id);
+
+CREATE TABLE user_storage_limits (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id),
+    storage_limit BIGINT NOT NULL DEFAULT 1073741824, -- 1GB in bytes
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE OR REPLACE FUNCTION calculate_user_storage(p_user_id INTEGER) 
+RETURNS BIGINT AS $$
+BEGIN
+    RETURN COALESCE((
+        SELECT SUM(a.size)
+        FROM attachments a
+        JOIN emails e ON a.email_id = e.id
+        JOIN users u ON 
+            (e.from_address = CONCAT(u.username, '#', u.domain) OR 
+             e.to_address = CONCAT(u.username, '#', u.domain))
+        WHERE u.id = p_user_id
+        AND a.status != 'failed'
+        AND a.expires_at > NOW()
+    ), 0);
+END;
+$$ LANGUAGE plpgsql;

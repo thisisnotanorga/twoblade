@@ -170,13 +170,13 @@
 								{contact.full_name}
 							</h3>
 							<div class="text-muted-foreground mt-1 flex items-center text-xs">
-								<Mail class="mr-1 h-3 w-3" />
+								<Mail class="h-3 w-3" />
 								<span class="truncate">{contact.email_address}</span>
 							</div>
 							{#if contact.tag}
 								<div class="mt-2">
 									<Badge variant="outline">
-										<Tag class="mr-1 h-3 w-3" />
+										<Tag class="h-3 w-3" />
 										{contact.tag}
 									</Badge>
 								</div>

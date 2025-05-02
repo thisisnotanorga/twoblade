@@ -1,6 +1,15 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { X, Reply, Send, CodeXml, ChevronDown, ChevronRight, FileDown } from 'lucide-svelte';
+	import {
+		X,
+		Reply,
+		Send,
+		CodeXml,
+		ChevronDown,
+		ChevronRight,
+		Paperclip,
+		LoaderCircle
+	} from 'lucide-svelte';
 	import { USER_DATA } from '$lib/stores/user';
 	import type { Email, EmailContentType } from '$lib/types/email';
 	import {
@@ -13,25 +22,15 @@
 	import { mode } from 'mode-watcher';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { PUBLIC_DOMAIN } from '$env/static/public';
-	import { formatFileSize, getInitials, getRandomColor } from '$lib/utils';
+	import { getInitials, getRandomColor } from '$lib/utils';
 	import Attachment from './Attachment.svelte';
 	import ImagePreview from './ImagePreview.svelte';
-
-	const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+	import FileAttachment from './FileAttachment.svelte';
+	import { IMAGE_TYPES, MAX_FILES, type ImageType } from '$lib/types/attachment';
+	import { toast } from 'svelte-sonner';
 
 	function isImageAttachment(type: string): boolean {
-		return IMAGE_TYPES.includes(type);
-	}
-
-	function getFileNameParts(filename: string) {
-		const lastDotIndex = filename.lastIndexOf('.');
-		if (lastDotIndex === -1 || lastDotIndex === 0) {
-			return { name: filename, ext: '' };
-		}
-		return {
-			name: filename.slice(0, lastDotIndex),
-			ext: filename.slice(lastDotIndex + 1).toUpperCase()
-		};
+		return IMAGE_TYPES.includes(type as ImageType);
 	}
 
 	let { email, onClose } = $props<{
@@ -47,12 +46,15 @@
 	let replyRecipient = $state('');
 	let attachments = $state<
 		Array<{
-			key: string;
+			id: string;
 			filename: string;
 			size: number;
 			type: string;
 		}>
 	>([]);
+
+	let attachmentComponent: Attachment | null = $state(null);
+	let isSending = $state(false);
 
 	const sanitizeConfig: Config = {
 		ALLOWED_TAGS: [...ALLOWED_HTML_TAGS],
@@ -147,28 +149,44 @@
 	}
 
 	async function handleSendReply() {
-		if (!replyText.trim() || !email || !replyRecipient || !$USER_DATA) return;
+		if (!replyText.trim() || !email || !replyRecipient || !$USER_DATA || isSending) return;
 
-		const currentUserEmail = `${$USER_DATA.username}#${PUBLIC_DOMAIN}`;
-
-		const emailData = {
-			from: currentUserEmail,
-			to: replyRecipient,
-			subject: `Re: ${email.subject?.replace(/^Re:\s+/i, '')}` || '',
-			body: replyText,
-			content_type: htmlMode ? 'text/html' : 'text/plain',
-			html_body: htmlMode ? replyText : null,
-			reply_to_id: email.id,
-			thread_id: email.thread_id || email.id,
-			attachments: attachments.map((a) => ({
-				key: a.key,
-				filename: a.filename,
-				size: a.size,
-				type: a.type
-			}))
-		};
+		isSending = true;
+		const sendToastId = toast.loading('Sending email...');
 
 		try {
+			let finalAttachments: Array<{ key: string; filename: string; size: number; type: string }> =
+				[];
+
+			if (attachmentComponent && attachments.length > 0) {
+				toast.loading('Uploading attachments...', { id: sendToastId });
+				try {
+					finalAttachments = await attachmentComponent.uploadAllFiles();
+					toast.success('Attachments uploaded.', { id: sendToastId });
+				} catch (uploadError) {
+					console.error('Attachment upload failed:', uploadError);
+					toast.error('Failed to upload attachments. Please try again.', { id: sendToastId });
+					isSending = false;
+					return;
+				}
+			} else {
+				toast.loading('Sending email...', { id: sendToastId });
+			}
+
+			const currentUserEmail = `${$USER_DATA.username}#${PUBLIC_DOMAIN}`;
+
+			const emailData = {
+				from: currentUserEmail,
+				to: replyRecipient,
+				subject: `Re: ${email.subject?.replace(/^Re:\s+/i, '')}` || '',
+				body: replyText,
+				content_type: htmlMode ? 'text/html' : 'text/plain',
+				html_body: htmlMode ? replyText : null,
+				reply_to_id: email.id,
+				thread_id: email.thread_id || email.id,
+				attachments: finalAttachments
+			};
+
 			const response = await fetch('/api/mail', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -179,8 +197,7 @@
 				const { status, result } = await response.json();
 
 				if (status !== 'success' || !result?.success) {
-					console.error('Failed to send email via API:', { status, result });
-					return;
+					throw new Error(`API Error: ${status} - ${JSON.stringify(result)}`);
 				}
 
 				const tempId = crypto.randomUUID();
@@ -211,13 +228,22 @@
 				replyText = '';
 				attachments = [];
 
+				toast.success('Email sent successfully!', { id: sendToastId });
 				await loadThreadEmails(email);
 			} else {
 				const errorData = await response.json();
-				console.error('Failed to send reply API error:', errorData);
+				throw new Error(`API Error ${response.status}: ${JSON.stringify(errorData)}`);
 			}
 		} catch (error) {
-			console.error('Error sending reply fetch:', error);
+			console.error('Error sending reply:', error);
+			toast.error(
+				`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				{
+					id: sendToastId
+				}
+			);
+		} finally {
+			isSending = false;
 		}
 	}
 
@@ -337,8 +363,10 @@
 		});
 	}
 
-	function handleAttachment(key: string, filename: string, size: number, type: string) {
-		attachments = [...attachments, { key, filename, size, type }];
+	function handleFilesChange(
+		files: Array<{ id: string; filename: string; size: number; type: string }>
+	) {
+		attachments = files;
 	}
 </script>
 
@@ -399,43 +427,39 @@
 							{/if}
 
 							{#if threadEmail.attachments?.length}
-								<div class="mt-4">
-									<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-										{#each threadEmail.attachments as attachment}
-											{#if isImageAttachment(attachment.type)}
-												<ImagePreview
-													url={`/api/attachment?key=${attachment.key}`}
-													filename={attachment.filename}
-													filesize={attachment.size}
-												/>
-											{:else}
+								<div class="mt-4 space-y-3">
+									{#if threadEmail.attachments.some((a) => isImageAttachment(a.type))}
+										<div class="grid grid-cols-[repeat(auto-fill,160px)] gap-3">
+											{#each threadEmail.attachments.filter( (a) => isImageAttachment(a.type) ) as attachment}
+												<div class="relative aspect-square h-[160px]">
+													<ImagePreview
+														url={`/api/attachment?key=${attachment.key}`}
+														filename={attachment.filename}
+														filesize={attachment.size}
+													/>
+												</div>
+											{/each}
+										</div>
+									{/if}
+
+									{#if threadEmail.attachments.some((a) => !isImageAttachment(a.type))}
+										<div class="flex flex-wrap gap-3">
+											{#each threadEmail.attachments.filter((a) => !isImageAttachment(a.type)) as attachment}
 												<a
 													href={`/api/attachment?key=${attachment.key}`}
-													class="hover:bg-accent hover:text-accent-foreground inline-flex w-fit items-center gap-2 rounded-md border px-3 py-1.5 transition-colors"
 													target="_blank"
 													rel="noopener noreferrer"
+													class="w-auto max-w-[240px]"
 												>
-													<FileDown class="h-4 w-4" />
-													<div class="min-w-0 flex-1">
-														{#if true}
-															{@const { name, ext } = getFileNameParts(attachment.filename)}
-															<div class="flex flex-col">
-																<div class="flex items-center">
-																	<span class="truncate text-sm font-medium">{name}</span>
-																	<span class="flex-shrink-0 text-sm font-medium"
-																		>.{ext.toLowerCase()}</span
-																	>
-																</div>
-																<span class="text-xs">
-																	{formatFileSize(attachment.size)}
-																</span>
-															</div>
-														{/if}
-													</div>
+													<FileAttachment
+														filename={attachment.filename}
+														filesize={attachment.size}
+														showDownload={true}
+													/>
 												</a>
-											{/if}
-										{/each}
-									</div>
+											{/each}
+										</div>
+									{/if}
 								</div>
 							{/if}
 						</div>
@@ -456,6 +480,7 @@
 							id="reply-textarea"
 							class="bg-background placeholder:text-muted-foreground min-h-[120px] w-full resize-none rounded-t-lg px-3.5 py-3 text-base focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
 							placeholder="Write your reply..."
+							disabled={isSending}
 						></textarea>
 
 						<div
@@ -465,30 +490,60 @@
 								size="sm"
 								class="transition-colors"
 								onclick={handleSendReply}
-								disabled={!replyText.trim()}
+								disabled={!replyText.trim() || isSending}
 							>
-								<Send class="h-4 w-4" />
-								Send
+								{#if isSending}
+									<LoaderCircle class="h-4 w-4 animate-spin" />
+									Sending...
+								{:else}
+									<Send class="h-4 w-4" />
+									Send
+								{/if}
 							</Button>
 
-							<Tooltip.Root>
-								<Tooltip.Trigger>
-									<button
-										class="relative flex h-8 w-8 items-center justify-center rounded-md transition-colors {htmlMode
-											? 'bg-primary/10 text-primary'
-											: 'text-muted-foreground hover:bg-muted'}"
-										onclick={() => (htmlMode = !htmlMode)}
+							<div class="flex items-center gap-2">
+								<Tooltip.Root>
+									<Tooltip.Trigger>
+										<button
+											class="relative flex h-8 w-8 items-center justify-center rounded-md transition-colors {htmlMode
+												? 'bg-primary/10 text-primary'
+												: 'text-muted-foreground hover:bg-muted'}"
+											onclick={() => (htmlMode = !htmlMode)}
+										>
+											<CodeXml class="h-4 w-4" />
+											<span class="sr-only">HTML Mode</span>
+										</button>
+									</Tooltip.Trigger>
+									<Tooltip.Content side="bottom">HTML Mode</Tooltip.Content>
+								</Tooltip.Root>
+
+								<Tooltip.Root>
+									<Tooltip.Trigger>
+										<button
+											class="text-muted-foreground hover:bg-muted relative flex h-8 w-8 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+											onclick={() => attachmentComponent?.openFileSelect()}
+											disabled={attachments.length >= MAX_FILES || isSending}
+										>
+											<Paperclip class="h-4 w-4" />
+											{#if attachments.length > 0}
+												<span
+													class="bg-primary text-secondary-foreground absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px]"
+												>
+													{attachments.length}
+												</span>
+											{/if}
+											<span class="sr-only">Attach files ({attachments.length}/{MAX_FILES})</span>
+										</button>
+									</Tooltip.Trigger>
+									<Tooltip.Content side="bottom"
+										>Attach files ({attachments.length}/{MAX_FILES})</Tooltip.Content
 									>
-										<CodeXml class="h-4 w-4" />
-										<span class="sr-only">HTML Mode</span>
-									</button>
-								</Tooltip.Trigger>
-								<Tooltip.Content side="bottom">HTML Mode</Tooltip.Content>
-							</Tooltip.Root>
+								</Tooltip.Root>
+							</div>
 						</div>
 					</div>
 
-					<Attachment onAttach={handleAttachment} />
+					<Attachment bind:this={attachmentComponent} onFilesChange={handleFilesChange} />
 				</div>
 			{:else}
 				<Button
@@ -497,7 +552,7 @@
 					variant="outline"
 					onclick={handleReplyClick}
 				>
-					<Reply class="mr-2 h-5 w-5" />
+					<Reply class="h-5 w-5" />
 					Reply to this conversation
 				</Button>
 			{/if}
@@ -509,7 +564,7 @@
 	</div>
 {/if}
 
-<style>
+<style lang="postcss">
 	:global(.badge-row) {
 		@apply text-muted-foreground flex flex-wrap items-center gap-2 text-sm;
 	}

@@ -258,7 +258,7 @@
 										</Tooltip.Root>
 
 										<div class="flex-1 truncate">
-											<span class="mr-1 {isReceiver(email) && !email.read_at ? 'font-bold' : ''}"
+											<span class="{isReceiver(email) && !email.read_at ? 'font-bold' : ''}"
 												>{email.subject}</span
 											>
 											<span class="text-muted-foreground">- {email.body}</span>

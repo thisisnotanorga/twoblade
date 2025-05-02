@@ -39,6 +39,6 @@
 	class="bg-primary/10 text-primary hover:bg-primary/20 px-3 py-2 text-sm font-medium"
 	onclick={unsnoozeEmails}
 >
-	<AlarmClockOff class="mr-2 h-4 w-4" />
+	<AlarmClockOff class="h-4 w-4" />
 	Unsnooze
 </Button>
