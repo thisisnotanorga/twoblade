@@ -4,6 +4,7 @@ import cors from 'cors'
 import postgres from 'postgres'
 import dns from 'dns/promises'
 import { validateAuthToken } from './middleware/auth.js';
+import { createHash } from 'crypto';
 
 const SHARP_PORT = +process.env.SHARP_PORT || 5000
 const HTTP_PORT = +process.env.HTTP_PORT || SHARP_PORT + 1
@@ -36,7 +37,7 @@ setInterval(async () => {
             )
         `;
         // TODO: remove from S3 too
-        
+
         // Then delete the expired emails
         await sql`
             DELETE FROM emails
@@ -67,6 +68,12 @@ const KEYWORDS = {
         'receipt', 'order confirmation', 'invoice',
         'payment received', 'shipping update', 'account update'
     ])
+};
+
+const HASHCASH_THRESHOLDS = {
+    GOOD: 18,
+    WEAK: 10,
+    TRIVIAL: 5
 };
 
 const verifyUser = (u, d) =>
@@ -422,15 +429,102 @@ setInterval(processScheduledEmails, 60000);
 const app = express()
 app.use(cors(), express.json())
 
+function parseHashcashDate(dateString) {
+    const year = parseInt(dateString.substring(0, 2), 10) + 2000;
+    const month = parseInt(dateString.substring(2, 4), 10) - 1; // Month is 0-indexed
+    const day = parseInt(dateString.substring(4, 6), 10);
+    const hour = parseInt(dateString.substring(6, 8), 10);
+    const minute = parseInt(dateString.substring(8, 10), 10);
+    const second = parseInt(dateString.substring(10, 12), 10);
+
+    return new Date(year, month, day, hour, minute, second);
+}
+
+function hasLeadingZeroBits(hash, bits) {
+    if (bits > hash.length * 4) {
+        return false;
+    }
+
+    const requiredZeroes = Math.floor(bits / 4);
+    const remainingBits = bits % 4;
+
+    const leadingZeroes = hash.substring(0, requiredZeroes);
+    if (leadingZeroes !== '0'.repeat(requiredZeroes)) {
+        return false;
+    }
+
+    if (remainingBits > 0) {
+        const nextDigit = parseInt(hash[requiredZeroes], 16);
+        const mask = (1 << (4 - remainingBits)) - 1;
+        return (nextDigit & mask) === 0;
+    }
+
+    return true;
+}
+
+function calculateSpamScore(header, resource) {
+    if (!header) return 3;
+
+    try {
+        const [version, bits, date, headerResource, ext, rand, counter] = header.split(':');
+
+        if (version !== '1' || !bits || !date || !headerResource || !rand || !counter) {
+            return 3;
+        }
+
+        // Verify resource matches
+        if (headerResource !== resource) {
+            return 3;
+        }
+
+        // Verify date is within last hour
+        const headerDate = parseHashcashDate(date);
+        const now = new Date();
+        if (now - headerDate > 3600000) {
+            return 2;
+        }
+
+        // Verify proof of work
+        const hash = createHash('sha1')
+            .update(header)
+            .digest('hex');
+
+        const actualBits = parseInt(bits, 10);
+        if (!hasLeadingZeroBits(hash, actualBits)) {
+            return 3;
+        }
+
+        if (actualBits >= HASHCASH_THRESHOLDS.GOOD) return 0;
+        if (actualBits >= HASHCASH_THRESHOLDS.WEAK) return 1;
+        if (actualBits >= HASHCASH_THRESHOLDS.TRIVIAL) return 2;
+        return 3;
+    } catch {
+        return 3;
+    }
+}
+
 app.post('/api/send', validateAuthToken, async (req, res) => {
     let logEntry;
     let id;
     try {
+        const { hashcash, ...emailData } = req.body;
+
+        const spamScore = calculateSpamScore(hashcash, emailData.to);
+
+        if (!hashcash || spamScore >= 3) {
+            return res.status(429).json({
+                success: false,
+                message: `Insufficient proof of work. Please retry with at least ${HASHCASH_THRESHOLDS.TRIVIAL} bits.`
+            });
+        }
+
+        const status = spamScore > 0 ? 'spam' : 'pending';
+
         const {
             from, to, subject, body, content_type = 'text/plain',
             html_body, scheduled_at, reply_to_id, thread_id,
             attachments = [], expires_at = null, self_destruct = false
-        } = req.body;
+        } = emailData;
 
         const attachmentKeys = attachments.map(att => att.key).filter(Boolean);
 
@@ -497,7 +591,7 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
 
         logEntry = await logEmail(
             from, fp.domain, to, tp.domain, subject, body,
-            content_type, html_body, 'sending', scheduled_at,
+            content_type, html_body, status, scheduled_at,
             reply_to_id, thread_id, expires_at, self_destruct
         );
         id = logEntry[0]?.id
@@ -567,7 +661,15 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
 })
 
 app.get('/api/server/health', (_, res) =>
-    res.json({ status: 'ok', protocol: PROTOCOL_VERSION, domain: DOMAIN })
+    res.json({
+        status: 'ok',
+        protocol: PROTOCOL_VERSION,
+        domain: DOMAIN,
+        hashcash: {
+            minBits: HASHCASH_THRESHOLDS.TRIVIAL,
+            recommendedBits: HASHCASH_THRESHOLDS.GOOD
+        }
+    })
 )
 
 net
