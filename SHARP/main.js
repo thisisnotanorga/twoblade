@@ -440,26 +440,15 @@ function parseHashcashDate(dateString) {
     return new Date(year, month, day, hour, minute, second);
 }
 
-function hasLeadingZeroBits(hash, bits) {
-    if (bits > hash.length * 4) {
+function hasLeadingZeroBits(hexHash, bits) {
+    if (bits === 0) return true;
+    if (bits > hexHash.length * 4) {
         return false;
     }
 
-    const requiredZeroes = Math.floor(bits / 4);
-    const remainingBits = bits % 4;
-
-    const leadingZeroes = hash.substring(0, requiredZeroes);
-    if (leadingZeroes !== '0'.repeat(requiredZeroes)) {
-        return false;
-    }
-
-    if (remainingBits > 0) {
-        const nextDigit = parseInt(hash[requiredZeroes], 16);
-        const mask = (1 << (4 - remainingBits)) - 1;
-        return (nextDigit & mask) === 0;
-    }
-
-    return true;
+    const hashInt = BigInt('0x' + hexHash);
+    const shiftAmount = BigInt(160 - bits);
+    return (hashInt >> shiftAmount) === 0n;
 }
 
 function calculateSpamScore(header, resource) {
@@ -490,9 +479,12 @@ function calculateSpamScore(header, resource) {
             .digest('hex');
 
         const actualBits = parseInt(bits, 10);
+
         if (!hasLeadingZeroBits(hash, actualBits)) {
+            console.error(`Server-side validation failed for ${actualBits} bits. Hash: ${hash}`);
             return 3;
         }
+        console.log(`Server-side validation successful for ${actualBits} bits.`);
 
         if (actualBits >= HASHCASH_THRESHOLDS.GOOD) return 0;
         if (actualBits >= HASHCASH_THRESHOLDS.WEAK) return 1;
