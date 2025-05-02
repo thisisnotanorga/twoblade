@@ -9,13 +9,16 @@
 	import { PUBLIC_DOMAIN } from '$env/static/public';
 	import { USER_DATA } from '$lib/stores/user';
 	import type { DateValue } from '@internationalized/date';
-	import { getLocalTimeZone, parseDate } from '@internationalized/date';
+	import { getLocalTimeZone } from '@internationalized/date';
 	import DateTimePicker from './DateTimePicker.svelte';
 	import type { Contact } from '$lib/types/contacts';
 	import IconInput from '$lib/components/self/IconInput.svelte';
-	import { Send, Mail, Tag, Clock, Timer } from 'lucide-svelte';
+	import { Send, Mail, Tag, Clock, Timer, AlertCircle, Check, LoaderCircle } from 'lucide-svelte';
 	import Autocomplete from '$lib/components/self/Autocomplete.svelte';
 	import * as DropdownMenu from '../ui/dropdown-menu';
+	import { HashcashPool } from '$lib/hashcash';
+	import { onDestroy } from 'svelte';
+	import log from '$lib/logger';
 
 	const EXPIRY_OPTIONS = [
 		{ label: '10 minutes', minutes: 10 },
@@ -40,7 +43,7 @@
 	let htmlBody = $state('');
 	let status = $state('');
 	let isStatusVisible = $state(false);
-	let statusColor = $state<'default' | 'destructive'>('default');
+	let statusColor = $state<'default' | 'destructive' | 'success'>('default');
 	let draftId = $state<number | null>(null);
 	let autoSaveTimeout = $state<number | null>(null);
 	let saveStatus = $state<'idle' | 'saving' | 'saved'>('idle');
@@ -49,6 +52,12 @@
 	let expiresAt = $state<Date | null>(null);
 	let expiresLabel = $state<string | null>(null);
 	let isBombEmail = $state(false);
+	let serverConfig = $state<{ hashcash: { minBits: number; recommendedBits: number } } | null>(
+		null
+	);
+	let isRetrying = $state(false);
+
+	const hashcashPool = new HashcashPool();
 
 	$effect(() => {
 		if (initialDraft) {
@@ -125,40 +134,109 @@
 		}
 	}
 
+	async function fetchServerConfig() {
+		try {
+			const response = await fetch(`https://${PUBLIC_DOMAIN}/api/server/health`);
+			if (response.ok) {
+				serverConfig = await response.json();
+				if (serverConfig?.hashcash?.recommendedBits) {
+					hashcashPool.setMinBits(serverConfig.hashcash.recommendedBits);
+				}
+			}
+		} catch (error) {
+			console.error('Failed to fetch server config:', error);
+		}
+	}
+
+	$effect(() => {
+		if (isOpen) {
+			fetchServerConfig();
+		}
+	});
+
+	$effect(() => {
+		if (to && to.includes('#')) {
+			log.debug(`Recipient changed to ${to}, ensuring pool is filled.`);
+			hashcashPool.ensurePoolFilled(to);
+		}
+	});
+
+	function resetForm() {
+		to = '';
+		subject = '';
+		body = '';
+		htmlBody = '';
+		htmlMode = false;
+		isStatusVisible = false;
+		draftId = null;
+		saveStatus = 'idle';
+		scheduledDate = undefined;
+		expiresAt = null;
+		expiresLabel = null;
+		isBombEmail = false;
+		if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+	}
+
 	async function handleSubmit(event: { preventDefault: () => void }) {
 		event.preventDefault();
 		const contentType: EmailContentType = htmlMode ? 'text/html' : 'text/plain';
-		const emailData = {
-			from,
-			to,
-			subject,
-			body,
-			content_type: contentType,
-			html_body: htmlMode ? htmlBody : null,
-			scheduled_at: scheduledDate ? scheduledDate.toDate(getLocalTimeZone()).toISOString() : null,
-			expires_at: expiresAt ? expiresAt.toISOString() : null,
-			self_destruct: isBombEmail
-		};
 		isStatusVisible = true;
-		status = 'Sending...';
+
 		try {
+			status = 'Computing SHARP requirements...';
+			statusColor = 'default';
+			const hashcash = await hashcashPool.getToken(to);
+			const emailData = {
+				from,
+				to,
+				subject,
+				body,
+				content_type: contentType,
+				html_body: htmlMode ? htmlBody : null,
+				scheduled_at: scheduledDate ? scheduledDate.toDate(getLocalTimeZone()).toISOString() : null,
+				expires_at: expiresAt ? expiresAt.toISOString() : null,
+				self_destruct: isBombEmail,
+				hashcash
+			};
+			status = 'Sending email...';
+
 			const response = await fetch('/api/mail', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(emailData)
 			});
 			const result = await response.json();
+
 			if (response.ok) {
-				status = `Email sent successfully!\n${JSON.stringify(result, null, 2)}`;
-				statusColor = 'default';
+				isRetrying = false;
 				await deleteDraft();
+
+				status = scheduledDate ? 'Email scheduled successfully!' : 'Email sent successfully!';
+				statusColor = 'success';
+
+				isStatusVisible = true;
+
+				setTimeout(() => {
+					isOpen = false;
+					resetForm();
+				}, 2000);
 			} else {
-				status = `Error sending email:\n${result.message || response.statusText}`;
+				if (response.status === 429 && !isRetrying) {
+					log.warn(`Received 429: ${result.message}. Retrying...`);
+					status = `Taking an extra moment to verify your email...`;
+					statusColor = 'destructive';
+					isRetrying = true;
+					handleSubmit(event);
+					return;
+				}
+				status = result.message || response.statusText;
 				statusColor = 'destructive';
+				isRetrying = false;
 			}
 		} catch (error) {
-			status = `Failed to send email:\n${error}`;
+			status = `Failed to send email: ${error}`;
 			statusColor = 'destructive';
+			isRetrying = false;
 		}
 	}
 
@@ -187,21 +265,13 @@
 			});
 		}
 		if (!open) {
-			to = '';
-			subject = '';
-			body = '';
-			htmlBody = '';
-			htmlMode = false;
-			isStatusVisible = false;
-			draftId = null;
-			saveStatus = 'idle';
-			scheduledDate = undefined;
-			expiresAt = null;
-			expiresLabel = null;
-			isBombEmail = false;
-			if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+			resetForm();
 		}
 	}
+
+	onDestroy(() => {
+		hashcashPool.cleanup();
+	});
 </script>
 
 <Dialog.Root bind:open={isOpen} onOpenChange={handleOpenChange}>
@@ -213,7 +283,7 @@
 			</Dialog.Description>
 		</Dialog.Header>
 
-		<form class="space-y-4 pt-4">
+		<form class="space-y-4 pt-4" onsubmit={handleSubmit}>
 			<div class="space-y-4">
 				<div class="flex items-center gap-4">
 					<label for="to" class="w-20 text-sm font-medium">To:</label>
@@ -341,7 +411,7 @@
 					Cancel
 				</button>
 				<DateTimePicker date={scheduledDate} onChange={(date) => (scheduledDate = date)} />
-				<Button onclick={handleSubmit}>
+				<Button type="submit">
 					{#if scheduledDate}
 						<Clock class="h-4 w-4" />
 						Schedule
@@ -353,10 +423,19 @@
 			</Dialog.Footer>
 
 			{#if isStatusVisible}
-				<Alert variant={statusColor} class="mt-4">
-					<AlertDescription class="whitespace-pre-wrap">
-						{status}
-					</AlertDescription>
+				<Alert class="mt-4">
+					<div class="flex items-start gap-2">
+						{#if statusColor === 'destructive'}
+							<AlertCircle class="h-5 w-5" />
+						{:else if statusColor === 'success'}
+							<Check class="h-5 w-5 text-green-600" />
+						{:else}
+							<LoaderCircle class="text-primary h-5 w-5 animate-spin" />
+						{/if}
+						<div class="flex-1">
+							<AlertDescription class="whitespace-pre-wrap">{status}</AlertDescription>
+						</div>
+					</div>
 				</Alert>
 			{/if}
 		</form>

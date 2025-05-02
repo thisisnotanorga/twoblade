@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ locals, url }) => {

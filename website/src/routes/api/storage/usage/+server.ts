@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 
 export const GET: RequestHandler = async ({ locals }) => {
     if (!locals.user) {

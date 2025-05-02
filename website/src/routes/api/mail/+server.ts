@@ -33,9 +33,10 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
             thread_id = null,
             attachments = [],
             expires_at = null,
-            self_destruct = false
+            self_destruct = false,
+            hashcash
         } = emailData;
-
+        console.log(hashcash, 'hashcash');
         const apiUrl = `https://${PUBLIC_DOMAIN}/api/send`;
 
         const response = await fetch(apiUrl, {
@@ -50,13 +51,22 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
                 reply_to_id, thread_id,
                 attachments,
                 expires_at,
-                self_destruct
+                self_destruct,
+                hashcash
             })
         });
 
         console.log('Response status:', response.status);
         const responseText = await response.text();
         console.log('Response body:', responseText);
+
+        if (response.status === 429) {
+            return json({
+                status: 'error',
+                message: responseText,
+                retryWithHigherDifficulty: true
+            }, { status: 429 });
+        }
 
         if (!response.ok) {
             return json({

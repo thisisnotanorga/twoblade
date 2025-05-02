@@ -1,7 +1,7 @@
 import { error, json, redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { generateDownloadUrl, generatePresignedUrl } from '$lib/s3';
-import { sql } from '$lib/db';
+import { generateDownloadUrl, generatePresignedUrl } from '$lib/server/s3';
+import { sql } from '$lib/server/db';
 import { nanoid } from 'nanoid';
 import { ALLOWED_TYPES } from '$lib/types/attachment';
 

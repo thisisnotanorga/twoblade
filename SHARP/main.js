@@ -481,10 +481,8 @@ function calculateSpamScore(header, resource) {
         const actualBits = parseInt(bits, 10);
 
         if (!hasLeadingZeroBits(hash, actualBits)) {
-            console.error(`Server-side validation failed for ${actualBits} bits. Hash: ${hash}`);
             return 3;
         }
-        console.log(`Server-side validation successful for ${actualBits} bits.`);
 
         if (actualBits >= HASHCASH_THRESHOLDS.GOOD) return 0;
         if (actualBits >= HASHCASH_THRESHOLDS.WEAK) return 1;

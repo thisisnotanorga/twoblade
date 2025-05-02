@@ -1,7 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import bcrypt from 'bcrypt';
 import type { Actions, ActionData } from './$types';
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 import { PUBLIC_DOMAIN } from '$env/static/public';
 
 const SALT_ROUNDS = 10;

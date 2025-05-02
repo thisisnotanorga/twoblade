@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 import type { PageServerLoad } from '../$types';
 import type { Draft } from '$lib/types/email';
 

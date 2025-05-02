@@ -1,7 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import bcrypt from 'bcrypt';
 import type { Actions } from './$types';
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 import { createAuthJWT, storeCode } from '$lib/server/jwt';
 
 export type ActionData = {

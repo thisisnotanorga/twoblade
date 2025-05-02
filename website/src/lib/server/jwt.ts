@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { JWT_SECRET } from '$env/static/private';
-import { sql } from '$lib/db';
+import { sql } from '$lib/server/db';
 import crypto from 'crypto';
 
 const secret = new TextEncoder().encode(JWT_SECRET);

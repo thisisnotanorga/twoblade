@@ -9,8 +9,12 @@
 	import { USER_DATA } from '$lib/stores/user';
 	import { page } from '$app/state';
 	import EmailClassificationButtons from '$lib/components/self/EmailClassificationButtons.svelte';
+	import log from '$lib/logger';
+	import { dev } from '$app/environment';
 
-	
+	log.setLevel(dev ? log.levels.DEBUG : log.levels.WARN);
+	console.log('Current log level:', log.getLevel(), log.levels);
+
 	let { children, data } = $props();
 
 	$effect(() => {

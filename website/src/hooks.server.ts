@@ -1,4 +1,4 @@
-import { sql } from "$lib/db";
+import { sql } from "$lib/server/db";
 import { deleteCode, verifyAuthJWT } from "$lib/server/jwt";
 import type { Handle } from "@sveltejs/kit";
 
