@@ -15,6 +15,8 @@
 	let props = $props<{
 		date: DateValue | undefined;
 		onChange: (date: DateValue | undefined) => void;
+		label?: string;
+		icon?: typeof import('lucide-svelte').Icon;
 	}>();
 
 	let selectedHours = $state<number>(
@@ -49,16 +51,13 @@
 	}
 
 	$effect(() => {
-		// Update the component when the prop changes
 		scheduledDate = props.date;
 	});
 
 	$effect(() => {
-		// Update the parent component when scheduledDate changes
 		if (scheduledDate) {
 			props.onChange(scheduledDate);
 
-			// Make sure the time is properly set
 			const currentDate = scheduledDate.toDate(getLocalTimeZone());
 			if (
 				currentDate.getHours() !== selectedHours ||
@@ -87,8 +86,12 @@
 			!props.date && 'text-muted-foreground'
 		)}
 	>
-		<CalendarClock class="h-4 w-4" />
-		{props.date ? df.format(props.date.toDate(getLocalTimeZone())) : 'Schedule'}
+		{#if props.icon}
+			<props.icon class="h-4 w-4" />
+		{:else}
+			<CalendarClock class="h-4 w-4" />
+		{/if}
+		{props.date ? df.format(props.date.toDate(getLocalTimeZone())) : props.label || 'Schedule'}
 	</Popover.Trigger>
 	<Popover.Content class="w-auto p-0">
 		<Calendar
@@ -100,7 +103,6 @@
 
 		<div class="flex gap-2 border-t p-3">
 			<div class="grid w-full grid-cols-3 gap-2">
-				<!-- Hours dropdown with custom arrow -->
 				<div class="relative">
 					<select
 						class="border-input bg-popover ring-offset-background focus:ring-ring w-full appearance-none rounded-md border px-3 py-2 text-sm"

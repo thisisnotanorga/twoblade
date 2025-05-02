@@ -8,12 +8,24 @@
 	import type { EmailContentType } from '$lib/types/email';
 	import { PUBLIC_DOMAIN } from '$env/static/public';
 	import { USER_DATA } from '$lib/stores/user';
-	import { type DateValue, getLocalTimeZone } from '@internationalized/date';
+	import type { DateValue } from '@internationalized/date';
+	import { getLocalTimeZone, parseDate } from '@internationalized/date';
 	import DateTimePicker from './DateTimePicker.svelte';
 	import type { Contact } from '$lib/types/contacts';
 	import IconInput from '$lib/components/self/IconInput.svelte';
-	import { Send, Mail, Tag, Clock, X } from 'lucide-svelte';
+	import { Send, Mail, Tag, Clock, Timer } from 'lucide-svelte';
 	import Autocomplete from '$lib/components/self/Autocomplete.svelte';
+	import * as DropdownMenu from '../ui/dropdown-menu';
+
+	const EXPIRY_OPTIONS = [
+		{ label: '10 minutes', minutes: 10 },
+		{ label: '30 minutes', minutes: 30 },
+		{ label: '1 hour', minutes: 60 },
+		{ label: '3 hours', minutes: 180 },
+		{ label: '6 hours', minutes: 360 },
+		{ label: '12 hours', minutes: 720 },
+		{ label: '24 hours', minutes: 1440 }
+	];
 
 	let { isOpen = $bindable(), initialDraft = null } = $props<{
 		isOpen: boolean;
@@ -34,6 +46,9 @@
 	let saveStatus = $state<'idle' | 'saving' | 'saved'>('idle');
 	let scheduledDate = $state<DateValue | undefined>();
 	let suggestions = $state<Array<{ label: string; value: string; tag: string | null }>>([]);
+	let expiresAt = $state<Date | null>(null);
+	let expiresLabel = $state<string | null>(null);
+	let isBombEmail = $state(false);
 
 	$effect(() => {
 		if (initialDraft) {
@@ -53,85 +68,65 @@
 		contentType: string;
 		htmlBody: string | null;
 	}) {
-		// only save if there's content
-		if (!content.to && !content.subject && !content.body && !content.htmlBody) {
-			return;
-		}
-
+		if (!content.to && !content.subject && !content.body && !content.htmlBody) return;
 		if (saveStatus === 'saving') return;
 		saveStatus = 'saving';
-
 		try {
 			const isUpdate = draftId !== null;
 			const method = isUpdate ? 'PUT' : 'POST';
 			const draftPayload = {
-				id: draftId, // include id for PUT requests
+				id: draftId,
 				to: content.to,
 				subject: content.subject,
 				body: content.body,
 				contentType: content.contentType,
 				htmlBody: content.htmlBody
 			};
-
-			console.log(`Saving draft (Method: ${method}):`, draftPayload);
 			const response = await fetch('/api/drafts', {
-				method: method,
+				method,
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(draftPayload)
 			});
-
 			if (response.ok) {
 				const { id } = await response.json();
-				if (!isUpdate) {
-					draftId = id; // store the new ID if it was a creation
-				}
+				if (!isUpdate) draftId = id;
 				saveStatus = 'saved';
 			} else {
-				console.error('Failed to save draft:', response.status, await response.text());
 				saveStatus = 'idle';
 			}
-		} catch (error) {
-			console.error('Failed to save draft:', error);
+		} catch {
 			saveStatus = 'idle';
 		}
 	}
 
 	async function deleteDraft() {
 		if (!draftId) return;
-
 		try {
 			await fetch('/api/drafts', {
 				method: 'DELETE',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ id: draftId })
 			});
-		} catch (error) {
-			console.error('Failed to delete draft:', error);
-		}
+		} catch {}
 	}
 
 	function scheduleAutoSave() {
 		if (autoSaveTimeout) window.clearTimeout(autoSaveTimeout);
 		saveStatus = 'idle';
-
-		const currentContent = {
+		const content = {
 			to,
 			subject,
 			body: htmlMode ? htmlBody : body,
 			contentType: htmlMode ? 'text/html' : 'text/plain',
 			htmlBody: htmlMode ? htmlBody : null
 		};
-
-		if (currentContent.body) {
-			autoSaveTimeout = window.setTimeout(() => {
-				saveDraft(currentContent);
-			}, 1500);
+		if (content.body) {
+			autoSaveTimeout = window.setTimeout(() => saveDraft(content), 1500);
 		}
 	}
 
 	async function handleSubmit(event: { preventDefault: () => void }) {
 		event.preventDefault();
-
 		const contentType: EmailContentType = htmlMode ? 'text/html' : 'text/plain';
 		const emailData = {
 			from,
@@ -140,22 +135,19 @@
 			body,
 			content_type: contentType,
 			html_body: htmlMode ? htmlBody : null,
-			scheduled_at: scheduledDate ? scheduledDate.toDate(getLocalTimeZone()).toISOString() : null
+			scheduled_at: scheduledDate ? scheduledDate.toDate(getLocalTimeZone()).toISOString() : null,
+			expires_at: expiresAt ? expiresAt.toISOString() : null,
+			self_destruct: isBombEmail
 		};
 		isStatusVisible = true;
 		status = 'Sending...';
-
 		try {
 			const response = await fetch('/api/mail', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(emailData)
 			});
-
 			const result = await response.json();
-
 			if (response.ok) {
 				status = `Email sent successfully!\n${JSON.stringify(result, null, 2)}`;
 				statusColor = 'default';
@@ -165,7 +157,6 @@
 				statusColor = 'destructive';
 			}
 		} catch (error) {
-			console.error('Fetch error:', error);
 			status = `Failed to send email:\n${error}`;
 			statusColor = 'destructive';
 		}
@@ -187,7 +178,6 @@
 
 	function handleOpenChange(open: boolean) {
 		if (!open && (to || subject || body || htmlBody)) {
-			// save one last time before closing
 			saveDraft({
 				to,
 				subject,
@@ -197,7 +187,6 @@
 			});
 		}
 		if (!open) {
-			// reset state when dialog closes
 			to = '';
 			subject = '';
 			body = '';
@@ -207,6 +196,9 @@
 			draftId = null;
 			saveStatus = 'idle';
 			scheduledDate = undefined;
+			expiresAt = null;
+			expiresLabel = null;
+			isBombEmail = false;
 			if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
 		}
 	}
@@ -279,7 +271,72 @@
 				</div>
 			</div>
 
-			<Dialog.Footer class="flex items-center justify-end gap-4">
+			<div class="space-y-4 border-t pt-4">
+				<div class="flex items-center justify-between">
+					<div class="space-y-0.5">
+						<Label class="text-sm font-medium">Email Expiration</Label>
+						<p class="text-muted-foreground text-xs">
+							Email will be automatically deleted after this date
+						</p>
+					</div>
+					<DropdownMenu.Root>
+						<DropdownMenu.Trigger disabled={isBombEmail}>
+							<Button variant="outline" size="sm" disabled={isBombEmail}>
+								<Timer class="h-4 w-4" />
+								{expiresLabel ? `Expires in ${expiresLabel}` : 'Set expiry'}
+							</Button>
+						</DropdownMenu.Trigger>
+						<DropdownMenu.Content class="w-36 p-2">
+							{#each EXPIRY_OPTIONS as option}
+								<DropdownMenu.Item
+									onclick={() => {
+										const d = new Date();
+										d.setMinutes(d.getMinutes() + option.minutes);
+										expiresAt = d;
+										expiresLabel = option.label;
+										isBombEmail = false;
+									}}
+									class="cursor-pointer"
+								>
+									{option.label}
+								</DropdownMenu.Item>
+							{/each}
+							<DropdownMenu.Separator />
+							<DropdownMenu.Item
+								onclick={() => {
+									expiresAt = null;
+									expiresLabel = null;
+								}}
+								class="data-[highlighted]:bg-destructive/20 data-[highlighted]:text-destructive mt-1 cursor-pointer"
+							>
+								Clear expiry
+							</DropdownMenu.Item>
+						</DropdownMenu.Content>
+					</DropdownMenu.Root>
+				</div>
+
+				<div class="flex items-center justify-between">
+					<div class="space-y-0.5">
+						<Label class="text-sm font-medium">Self-destruct after reading</Label>
+						<p class="text-muted-foreground text-xs">
+							Email will be deleted once opened by recipient
+						</p>
+					</div>
+					<Switch
+						bind:checked={isBombEmail}
+						onchange={(e: Event) => {
+							isBombEmail = (e.target as HTMLInputElement).checked;
+							if (isBombEmail) {
+								expiresAt = null;
+								expiresLabel = null;
+							}
+						}}
+						disabled={!!expiresAt}
+					/>
+				</div>
+			</div>
+
+			<Dialog.Footer class="flex items-center justify-end">
 				<button type="button" class="mr-auto text-sm underline" onclick={() => (isOpen = false)}>
 					Cancel
 				</button>

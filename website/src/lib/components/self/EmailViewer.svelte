@@ -219,7 +219,9 @@
 					classification: 'primary',
 					status: 'sent',
 					error_message: null,
-					attachments: emailData.attachments
+					attachments: emailData.attachments,
+					expires_at: null,
+					self_destruct: false
 				};
 
 				threadEmails = [...threadEmails, newEmail];

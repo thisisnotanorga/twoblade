@@ -31,7 +31,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     try {
         const emailInfo = await sql`
-            SELECT thread_id, from_address
+            SELECT thread_id, from_address, self_destruct
             FROM emails
             WHERE id = ${emailId}
         `;
@@ -40,7 +40,19 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             throw error(404, 'Email not found');
         }
 
-        // update all unread emails in thread addressed to user
+        if (emailInfo[0].self_destruct) {
+            const deleteResult = await sql`
+                DELETE FROM emails
+                WHERE thread_id = ${emailInfo[0].thread_id} OR id = ${emailId}
+                RETURNING id
+            `;
+
+            return json({
+                success: true,
+                deleted: deleteResult.count > 0
+            });
+        }
+
         const receivedUpdateResult = await sql`
             UPDATE emails
             SET read_at = NOW()
@@ -51,7 +63,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             RETURNING id
         `;
 
-        // If user sent the email, mark it as read too
         let totalUpdated = receivedUpdateResult.count;
         if (emailInfo[0].from_address === userEmail) {
             const senderUpdateResult = await sql`

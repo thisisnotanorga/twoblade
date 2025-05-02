@@ -29,6 +29,8 @@ export interface Email {
     reply_to_id?: string | null;  // ID of email this is replying to
     thread_id?: string | null;    // ID of the root email in this thread
     attachments: EmailAttachment[];
+    expires_at: string | null;
+    self_destruct: boolean;
 }
 
 export interface Draft {
@@ -47,7 +49,7 @@ export type AllowedTag = 'p' | 'br' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' |
     'ul' | 'ol' | 'li' | 'strong' | 'em' | 'u' | 'a' | 'img' |
     'table' | 'thead' | 'tbody' | 'tr' | 'th' | 'td';
 
-export type AllowedCSSProperty = 'color' | 'font-size' | 'font-weight' | 
+export type AllowedCSSProperty = 'color' | 'font-size' | 'font-weight' |
     'text-align' | 'margin' | 'padding' | 'border';
 
 export const ALLOWED_HTML_TAGS: AllowedTag[] = [

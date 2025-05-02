@@ -31,7 +31,9 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
             scheduled_at = null,
             reply_to_id = null,
             thread_id = null,
-            attachments = []
+            attachments = [],
+            expires_at = null,
+            self_destruct = false
         } = emailData;
 
         const apiUrl = `https://${PUBLIC_DOMAIN}/api/send`;
@@ -46,7 +48,9 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
                 from, to, subject, body, 
                 content_type, html_body, scheduled_at,
                 reply_to_id, thread_id,
-                attachments
+                attachments,
+                expires_at,
+                self_destruct
             })
         });
 

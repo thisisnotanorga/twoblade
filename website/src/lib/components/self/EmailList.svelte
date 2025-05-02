@@ -1,5 +1,15 @@
 <script lang="ts">
-	import { Square, CheckSquare, Inbox, TagsIcon, MessagesSquare, Users, Bell } from 'lucide-svelte';
+	import {
+		Square,
+		CheckSquare,
+		Inbox,
+		TagsIcon,
+		MessagesSquare,
+		Users,
+		Bell,
+		Bomb,
+		Clock
+	} from 'lucide-svelte';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { scale } from 'svelte/transition';
 	import Star from '$lib/components/self/icons/Star.svelte';
@@ -54,6 +64,32 @@
 		})}`;
 	}
 
+	function formatExpiration(date: string) {
+		const expiryDate = new Date(date);
+		const now = new Date();
+		const diff = expiryDate.getTime() - now.getTime();
+		const isAgo = diff < 0;
+		const absDiff = Math.abs(diff);
+
+		const seconds = Math.floor(absDiff / 1000);
+		const minutes = Math.floor(seconds / 60);
+		const hours = Math.floor(minutes / 60);
+		const days = Math.floor(hours / 24);
+
+		let result = '';
+		if (days > 0) {
+			result = `${days} days`;
+		} else if (hours > 0) {
+			result = `${hours} hours`;
+		} else if (minutes > 0) {
+			result = `${minutes} minutes`;
+		} else {
+			result = `${seconds} seconds`;
+		}
+
+		return isAgo ? `${result} ago` : result;
+	}
+
 	function toggleSelect(emailId: string) {
 		const newSet = new Set(selectedEmails);
 		if (newSet.has(emailId)) newSet.delete(emailId);
@@ -86,6 +122,16 @@
 	async function handleEmailSelect(email: Email) {
 		const emailIndex = emails.findIndex((e: Email) => e.id === email.id);
 		if (emailIndex === -1) return;
+
+		if (email.self_destruct && isReceiver(email)) {
+			selectedEmail = email;
+			const newEmails = emails.filter((e: Email) => e.id !== email.id);
+			emails = newEmails;
+			toast.info('Self-destructing email has been removed', {
+				duration: 4000
+			});
+			return;
+		}
 
 		if (isReceiver(email) && !email.read_at) {
 			try {
@@ -121,7 +167,8 @@
 
 	function handleActionComplete(ids: string[]) {
 		const idsSet = new Set(ids);
-		props.emails = emails.filter((email: Email) => !idsSet.has(email.id));
+		const newEmails = emails.filter((email: Email) => !idsSet.has(email.id));
+		props = { ...props, emails: newEmails };
 		selectedEmails = new Set();
 		if (selectedEmail && idsSet.has(selectedEmail.id)) {
 			selectedEmail = null;
@@ -233,32 +280,65 @@
 											{/if}
 										</span>
 									</div>
-									<div class="ml-3 flex min-w-0 flex-1 items-center space-x-3">
-										<span
-											class="max-w-[200px] truncate font-medium {isReceiver(email) && !email.read_at
-												? 'font-bold'
-												: ''}"
-										>
-											{showRecipient ? email.to_address : email.from_address}
-										</span>
-
-										<Tooltip.Root>
-											<Tooltip.Trigger
-												class="flex h-6 w-6 items-center justify-center rounded-full transition-colors
-													{classificationColors[email.classification as Classification].bg}/10
-													{classificationColors[email.classification as Classification].text}
-													hover:{classificationColors[email.classification as Classification].bg}/20"
+									<div class="ml-3 flex min-w-0 flex-1 items-center">
+										<div class="flex items-center space-x-2">
+											<span
+												class="max-w-[200px] truncate font-medium {isReceiver(email) &&
+												!email.read_at
+													? 'font-bold'
+													: ''}"
 											>
-												{@const Icon = classificationIcons[email.classification as Classification]}
-												<Icon class="h-3.5 w-3.5" />
-											</Tooltip.Trigger>
-											<Tooltip.Content>
-												<p class="capitalize">{email.classification}</p>
-											</Tooltip.Content>
-										</Tooltip.Root>
+												{showRecipient ? email.to_address : email.from_address}
+											</span>
 
-										<div class="flex-1 truncate">
-											<span class="{isReceiver(email) && !email.read_at ? 'font-bold' : ''}"
+											<div class="inline-flex gap-2">
+												<Tooltip.Root>
+													<Tooltip.Trigger
+														class="flex h-6 w-6 items-center justify-center rounded-full transition-colors 
+														{classificationColors[email.classification as Classification].bg}/10
+														{classificationColors[email.classification as Classification].text}
+														{classificationColors[email.classification as Classification].bgStrong}"
+													>
+														{@const Icon =
+															classificationIcons[email.classification as Classification]}
+														<Icon class="h-3.5 w-3.5" />
+													</Tooltip.Trigger>
+													<Tooltip.Content>
+														<p class="capitalize">{email.classification}</p>
+													</Tooltip.Content>
+												</Tooltip.Root>
+
+												{#if email.self_destruct}
+													<Tooltip.Root>
+														<Tooltip.Trigger
+															class="text-destructive bg-destructive/10 hover:bg-destructive/20 flex h-6 w-6 items-center justify-center
+															rounded-full transition-colors"
+														>
+															<Bomb class="h-3.5 w-3.5" />
+														</Tooltip.Trigger>
+														<Tooltip.Content>
+															<p>Self-destructing email (deletes after reading)</p>
+														</Tooltip.Content>
+													</Tooltip.Root>
+												{/if}
+
+												{#if email.expires_at}
+													<Tooltip.Root>
+														<Tooltip.Trigger
+															class="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/10
+															text-amber-500 transition-colors hover:bg-amber-500/20"
+														>
+															<Clock class="h-3.5 w-3.5" />
+														</Tooltip.Trigger>
+														<Tooltip.Content>
+															<p>Expires in {formatExpiration(email.expires_at)}</p>
+														</Tooltip.Content>
+													</Tooltip.Root>
+												{/if}
+											</div>
+										</div>
+										<div class="ml-2 flex-1 truncate">
+											<span class={isReceiver(email) && !email.read_at ? 'font-bold' : ''}
 												>{email.subject}</span
 											>
 											<span class="text-muted-foreground">- {email.body}</span>
