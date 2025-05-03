@@ -548,6 +548,11 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
 
         // Local delivery: insert once with status 'sent' and return immediately
         if (tp_.domain === DOMAIN) {
+            const recipientUser = await verifyUser(tp_.username, tp_.domain);
+            if (!recipientUser) {
+                return res.status(404).json({ success: false, message: 'Recipient user not found on this server' });
+            }
+
             const result = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'sent', null, reply_to_id, thread_id, expires_at, self_destruct);
             id = result[0]?.id;
             if (id && attachmentKeys.length > 0) {
@@ -570,8 +575,6 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
                 message: 'You can only send emails from your own address'
             });
         }
-
-        console.log('Received email request:', { from, to, subject, content_type, attachmentCount: attachmentKeys.length });
 
         const fp = parseSharpAddress(from)
         const tp = parseSharpAddress(to)
