@@ -19,6 +19,9 @@
 	} from '$lib/stores/searchStore';
 	import { Search } from 'lucide-svelte';
 	import { debounce } from '$lib/utils';
+	import { isOffline } from '$lib/stores/network';
+	import { toast } from 'svelte-sonner';
+	import { onMount } from 'svelte';
 
 	log.setLevel(dev ? log.levels.DEBUG : log.levels.WARN);
 
@@ -44,13 +47,68 @@
 
 	const debouncedSearch = debounce(performSearch, 300);
 
+	async function detectSWUpdate() {
+		const registration = await navigator.serviceWorker.ready;
+
+		registration.addEventListener('updatefound', () => {
+			const newSW = registration.installing;
+			if (newSW) {
+				newSW.addEventListener('statechange', () => {
+					if (newSW.state === 'installed') {
+						toast.success('New version available. Refresh to update?', {
+							duration: Infinity,
+							dismissable: true,
+							action: {
+								label: 'Refresh',
+								onClick: async () => {
+									log.debug('Refreshing page to update service worker...');
+									newSW.postMessage({ type: 'SKIP_WAITING' });
+									window.location.reload()
+								}
+							}
+						});
+					}
+				});
+			}
+		});
+	}
 	$effect(() => {
 		debouncedSearch($searchQuery);
+	});
+
+	let offlineToastId: string | number | undefined;
+
+	$effect(() => {
+		const updateNetworkStatus = () => {
+			$isOffline = !navigator.onLine;
+
+			if ($isOffline) {
+				toast.warning('You are offline. Limited functionality may be available.', {
+					duration: Infinity,
+					dismissable: true
+				});
+			}
+		};
+
+		updateNetworkStatus();
+
+		window.addEventListener('online', updateNetworkStatus);
+		window.addEventListener('offline', updateNetworkStatus);
+
+		return () => {
+			window.removeEventListener('online', updateNetworkStatus);
+			window.removeEventListener('offline', updateNetworkStatus);
+			if (offlineToastId) toast.dismiss(offlineToastId);
+		};
+	});
+
+	onMount(() => {
+		detectSWUpdate();
 	});
 </script>
 
 <ModeWatcher />
-<Toaster />
+<Toaster richColors />
 
 <Sidebar.Provider>
 	{#if !isAuthRoute}

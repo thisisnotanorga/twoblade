@@ -54,7 +54,7 @@
 <Sidebar.Root collapsible="offcanvas" variant="inset">
 	<Sidebar.Header>
 		<div class="flex items-center gap-1 px-2 py-2">
-			<img src="/twoblade.svg" class="h-5 w-5" alt="twoblade" />
+			<img src="/logo.svg" class="h-5 w-5" alt="twoblade" />
 			<span class="text-base font-semibold">Twoblade</span>
 		</div>
 	</Sidebar.Header>
