@@ -76,8 +76,16 @@ const HASHCASH_THRESHOLDS = {
     TRIVIAL: 5
 };
 
-const verifyUser = (u, d) =>
-    sql`SELECT * FROM users WHERE username=${u} AND domain=${d}`.then(r => r[0])
+const verifyUser = async (u, d) => {
+    console.log(`[verifyUser] Checking user: ${u}@${d}`);
+    const result = await sql`SELECT * FROM users WHERE username=${u} AND domain=${d}`;
+    console.log(`[verifyUser] Query result:`, result);
+    if (!result.length) {
+        console.warn(`[verifyUser] No user found for ${u}@${d}`);
+        return null;
+    }
+    return result[0];
+}
 const logEmail = (fa, fd, ta, td, s, b, ct = 'text/plain', hb = null, st = 'pending', sa = null, rid = null, tid = null, ea = null, sd = false) => {
     const classification = classifyEmail(s, b, hb);
     return sql`
