@@ -2,11 +2,11 @@ import { crypto } from '@noble/hashes/crypto';
 import { sha1 } from '@noble/hashes/legacy.js';
 import log from './logger';
 
-export async function generateHashcash(resource: string, bits: number, signal?: AbortSignal): Promise<string> {
+export async function generateHashcash(resource: string, bits: number, signal?: AbortSignal, customDate?: Date): Promise<string> {
     log.debug(`Generating Hashcash(${bits}) for ${resource}`);
     const startTime = Date.now();
     const version = 1;
-    const date = formatDate(new Date());
+    const date = formatDate(customDate || new Date());
     const rand = generateRandomString();
     let counter = 0;
 
@@ -179,4 +179,16 @@ export class HashcashPool {
         this.mining.clear();
         this.abortController = new AbortController();
     }
+}
+
+// TESTS
+
+export function generateExpiredHashcash(resource: string, bits: number, hoursAgo: number): Promise<string> {
+    const pastDate = new Date();
+    pastDate.setHours(pastDate.getHours() - hoursAgo);
+    return generateHashcash(resource, bits, undefined, pastDate);
+}
+
+export function generateMalformedHashcash(): string {
+    return "1:invalid:format:resource::rand:counter";
 }
