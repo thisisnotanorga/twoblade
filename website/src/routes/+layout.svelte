@@ -6,7 +6,6 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import { Toaster } from '$lib/components/ui/sonner';
 	import { currentTab } from '$lib/stores/navigation';
-	import { page } from '$app/state';
 	import EmailClassificationButtons from '$lib/components/self/EmailClassificationButtons.svelte';
 	import log from '$lib/logger';
 	import { dev } from '$app/environment';
@@ -22,6 +21,12 @@
 	import { isOffline } from '$lib/stores/network';
 	import { toast } from 'svelte-sonner';
 	import { onMount } from 'svelte';
+	import { lastPollTime, isPolling, POLLING_INTERVAL, seenEmailIds } from '$lib/stores/polling';
+	import { browser } from '$app/environment';
+	import { USER_DATA } from '$lib/stores/user';
+	import { invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
+	import type { Email } from '$lib/types/email';
 
 	log.setLevel(dev ? log.levels.DEBUG : log.levels.WARN);
 
@@ -104,6 +109,81 @@
 
 	onMount(() => {
 		detectSWUpdate();
+	});
+
+	async function showEmailNotification(count: number) {		
+		console.log('Showing email notification:', $lastPollTime.toString(), count);
+		const note = new Notification('New Emails', {
+			body: `You have ${count} new email${count > 1 ? 's' : ''}`,
+			icon: '/favicon.svg',
+			tag: $lastPollTime.toString()
+		});
+		note.onclick = () => {
+			window.focus();
+			window.location.href = '/index';
+			window.location.reload();
+		};
+	}
+
+	let isFirstPoll = $state(true);
+
+	async function pollForNewEmails() {		
+		if (!browser || $isOffline || !page.data.user || $isPolling) return;
+		
+		$isPolling = true;
+
+		try {
+			const res = await fetch('/api/emails/poll', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ lastPollTime: $lastPollTime, isFirstPoll })
+			});
+
+			if (!res.ok) {
+				console.error('Polling failed:', res.status);
+				return;
+			}
+
+			const data = await res.json();
+			const seen = $seenEmailIds;
+			const trulyNewEmails = data.emails?.filter((e: Email) => !seen.has(e.id)) || [];
+			
+			if (data.emails?.length > 0) {
+				seenEmailIds.update(currentSet => {
+					const updatedSet = new Set(currentSet);
+					data.emails.forEach((e: Email) => updatedSet.add(e.id));
+					return updatedSet;
+				});
+
+				if (trulyNewEmails.length > 0 && !isFirstPoll && $USER_DATA?.settings?.notifications_enabled) {
+					await showEmailNotification(trulyNewEmails.length);
+				}
+
+				await invalidateAll();
+			}
+		} catch (e) {
+			console.error('Polling error:', e);
+		} finally {
+			$lastPollTime = Date.now();
+			isFirstPoll = false;
+			$isPolling = false;
+		}
+	}
+
+	let pollInterval: ReturnType<typeof setInterval>;
+
+	onMount(() => {
+		if (browser) {
+			detectSWUpdate();
+			$lastPollTime = Date.now();
+			pollInterval = setInterval(pollForNewEmails, POLLING_INTERVAL);
+		}
+
+		return () => {
+			if (pollInterval) {
+				clearInterval(pollInterval);
+			}
+		};
 	});
 </script>
 

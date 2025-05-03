@@ -187,7 +187,7 @@
 				attachments: finalAttachments
 			};
 
-			const response = await fetch('/api/mail', {
+			const response = await fetch('/api/emails/new', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(emailData)
