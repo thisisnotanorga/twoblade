@@ -498,7 +498,6 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
     let id;
     try {
         const { hashcash, ...emailData } = req.body;
-
         const spamScore = calculateSpamScore(hashcash, emailData.to);
 
         if (!hashcash || spamScore >= 3) {
@@ -508,78 +507,50 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
             });
         }
 
-        const status = spamScore > 0 ? 'spam' : 'pending';
+        let status = spamScore > 0 ? 'spam' : 'pending';
+        if (emailData.scheduled_at) status = 'scheduled';
 
-        const {
-            from, to, subject, body, content_type = 'text/plain',
+        const { from, to, subject, body, content_type = 'text/plain',
             html_body, scheduled_at, reply_to_id, thread_id,
-            attachments = [], expires_at = null, self_destruct = false
-        } = emailData;
+            attachments = [], expires_at = null, self_destruct = false } = emailData;
 
         const attachmentKeys = attachments.map(att => att.key).filter(Boolean);
+        const fp = parseSharpAddress(from), tp = parseSharpAddress(to);
 
-        const fp_ = parseSharpAddress(from);
-        const tp_ = parseSharpAddress(to);
-
-        // If scheduled, save with scheduled status
         if (scheduled_at) {
-            logEntry = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'scheduled', scheduled_at, reply_to_id, thread_id, expires_at, self_destruct);
+            logEntry = await logEmail(from, fp.domain, to, tp.domain, subject, body, content_type, html_body, status, scheduled_at, reply_to_id, thread_id, expires_at, self_destruct);
             id = logEntry[0]?.id;
-
             if (id && attachmentKeys.length > 0) {
-                console.log(`[Scheduled] Linking ${attachmentKeys.length} attachments to email ID ${id}:`, attachmentKeys);
-                await sql`
-                    UPDATE attachments 
-                    SET email_id = ${id},
-                        status = 'scheduled' 
-                    WHERE key = ANY(${attachmentKeys}) 
-                `;
+                await sql`UPDATE attachments SET email_id = ${id}, status = ${status} WHERE key = ANY(${attachmentKeys})`;
             }
             return res.json({ success: true, scheduled: true, id });
         }
 
-        // Local delivery: insert once with status 'sent' and return immediately
-        if (tp_.domain === DOMAIN) {
-            const recipientUser = await verifyUser(tp_.username, tp_.domain);
-            if (!recipientUser) {
+        if (tp.domain === DOMAIN) {
+            if (!await verifyUser(tp.username, tp.domain)) {
                 return res.status(404).json({ success: false, message: 'Recipient user not found on this server' });
             }
-
-            const result = await logEmail(from, fp_.domain, to, tp_.domain, subject, body, content_type, html_body, 'sent', null, reply_to_id, thread_id, expires_at, self_destruct);
-            id = result[0]?.id;
+            const finalStatus = status === 'pending' ? 'sent' : status;
+            logEntry = await logEmail(from, fp.domain, to, tp.domain, subject, body, content_type, html_body, finalStatus, null, reply_to_id, thread_id, expires_at, self_destruct);
+            id = logEntry[0]?.id;
             if (id && attachmentKeys.length > 0) {
-                console.log(`[Local] Linking ${attachmentKeys.length} attachments to email ID ${id}:`, attachmentKeys);
-                await sql`
-                    UPDATE attachments 
-                    SET email_id = ${id},
-                        status = 'sent'
-                    WHERE key = ANY(${attachmentKeys})
-                `;
+                await sql`UPDATE attachments SET email_id = ${id}, status = ${finalStatus} WHERE key = ANY(${attachmentKeys})`;
             }
             return res.json({ success: true, id });
         }
 
-        // validate that the sender matches the authenticated user
-        const fromAddress = parseSharpAddress(from);
-        if (fromAddress.username !== req.user.username || fromAddress.domain !== req.user.domain) {
+        if (fp.username !== req.user.username || fp.domain !== req.user.domain) {
             return res.status(403).json({
                 success: false,
                 message: 'You can only send emails from your own address'
             });
         }
 
-        const fp = parseSharpAddress(from)
-        const tp = parseSharpAddress(to)
-        console.log('Parsed addresses:', { from: fp, to: tp });
-
         try {
-            console.log('Validating remote server for domain:', tp.domain);
-            await validateRemoteServer(tp.domain)
-            console.log('Remote server validation successful');
+            await validateRemoteServer(tp.domain);
         } catch (e) {
-            console.error('Remote server validation failed:', e);
-            await logEmail(from, fp.domain, to, tp.domain, subject, body, content_type, html_body, 'failed', null, reply_to_id, thread_id)
-            throw new Error(`Invalid destination: ${e.message}`)
+            await logEmail(from, fp.domain, to, tp.domain, subject, body, content_type, html_body, 'failed', null, reply_to_id, thread_id, expires_at, self_destruct);
+            throw new Error(`Invalid destination: ${e.message}`);
         }
 
         logEntry = await logEmail(
@@ -587,36 +558,31 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
             content_type, html_body, status, scheduled_at,
             reply_to_id, thread_id, expires_at, self_destruct
         );
-        id = logEntry[0]?.id
-        console.log('Created email log entry with ID:', id);
+        id = logEntry[0]?.id;
 
         if (id && attachmentKeys.length > 0) {
             console.log(`[Remote] Linking ${attachmentKeys.length} attachments to email ID ${id}:`, attachmentKeys);
             await sql`
-                UPDATE attachments 
+                UPDATE attachments
                 SET email_id = ${id},
-                    status = 'sending' 
+                    status = 'sending' // Attachments are 'sending' during remote transfer attempt
                 WHERE key = ANY(${attachmentKeys})
             `;
         }
 
+        // Proceed with sending (status could be 'pending' or 'spam')
         try {
-            console.log('Attempting to send email to remote server');
             const result = await Promise.race([
                 sendEmailToRemoteServer({
                     from, to, subject, body, content_type, html_body,
                     attachments: attachmentKeys
                 }),
                 new Promise((_, r) => setTimeout(() => {
-                    console.log('Email send operation timed out after 10 seconds');
                     r(new Error('Connection timed out'))
                 }, 10000))
             ])
 
-            console.log('Send result:', result);
-
             if (result.responses?.some(r => r.type === 'ERROR')) {
-                console.log('Remote server returned error response');
                 if (id) {
                     await sql`UPDATE emails SET status='rejected' WHERE id=${id}`;
                     if (attachmentKeys.length > 0) {
@@ -627,26 +593,31 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
             }
 
             if (id) {
-                await sql`UPDATE emails SET status='sent' WHERE id=${id}`;
+                // Update status to 'sent' only upon successful remote delivery,
+                // even if it was initially marked as 'spam' by the sender.
+                // The recipient server will make its own final determination.
+                await sql`UPDATE emails SET status='sent', sent_at = NOW() WHERE id=${id}`;
                 if (attachmentKeys.length > 0) {
                     await sql`UPDATE attachments SET status='sent' WHERE key = ANY(${attachmentKeys})`;
                 }
             }
             return res.json({ ...result, id });
         } catch (e) {
-            console.error('Error sending email:', e);
-            if (id && attachmentKeys.length > 0) {
-                await sql`UPDATE attachments SET status='failed' WHERE key = ANY(${attachmentKeys})`;
+            if (id) {
+                await sql`UPDATE emails SET status='failed', error_message=${e.message} WHERE id=${id}`;
+                if (attachmentKeys.length > 0) {
+                    await sql`UPDATE attachments SET status='failed' WHERE key = ANY(${attachmentKeys})`;
+                }
             }
-            throw e
+            throw e;
         }
     } catch (e) {
         console.error('Request failed:', e);
-        if (id) {
-            await sql`UPDATE emails SET status='failed', error_message=${e.message} WHERE id=${id}`
+        if (id && !(await sql`SELECT 1 FROM emails WHERE id=${id} AND status IN ('failed', 'rejected', 'spam')`)[0]) {
+            await sql`UPDATE emails SET status='failed', error_message=${e.message} WHERE id=${id}`;
             const attachmentKeys = req.body.attachments?.map(att => att.key).filter(Boolean) || [];
             if (attachmentKeys.length > 0) {
-                await sql`UPDATE attachments SET status='failed' WHERE key = ANY(${attachmentKeys})`;
+                await sql`UPDATE attachments SET status='failed' WHERE key = ANY(${attachmentKeys}) AND email_id = ${id}`;
             }
         }
         return res.status(400).json({ success: false, message: e.message })

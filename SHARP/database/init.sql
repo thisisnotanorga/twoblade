@@ -14,7 +14,8 @@ CREATE TYPE email_status AS ENUM (
     'sent', -- Successfully delivered
     'failed', -- Transmission failed
     'rejected', -- Explicitly rejected by remote server
-    'scheduled' -- Scheduled for future delivery
+    'scheduled', -- Scheduled for future delivery
+    'spam' -- Marked as spam by the system
 );
 
 CREATE TYPE email_classification AS ENUM (
