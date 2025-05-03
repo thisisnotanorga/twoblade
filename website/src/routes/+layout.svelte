@@ -11,9 +11,16 @@
 	import EmailClassificationButtons from '$lib/components/self/EmailClassificationButtons.svelte';
 	import log from '$lib/logger';
 	import { dev } from '$app/environment';
+	import IconInput from '$lib/components/self/IconInput.svelte';
+	import {
+		searchQuery,
+		searchResults,
+		lastSearchedQuery,
+		clearSearch
+	} from '$lib/stores/searchStore';
+	import { Search } from 'lucide-svelte';
 
 	log.setLevel(dev ? log.levels.DEBUG : log.levels.WARN);
-	console.log('Current log level:', log.getLevel(), log.levels);
 
 	let { children, data } = $props();
 
@@ -23,6 +30,37 @@
 
 	const isAuthRoute = $derived(!!page.route.id?.startsWith('/(auth)'));
 	const isEmailRoute = $derived(page.route.id === '/index');
+
+	function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
+		let timeoutId: number | undefined;
+		return (...args: Parameters<T>) => {
+			clearTimeout(timeoutId);
+			timeoutId = window.setTimeout(() => {
+				fn(...args);
+			}, delay);
+		};
+	}
+
+	const performSearch = async (query: string) => {
+		if (!query.trim()) {
+			clearSearch();
+			return;
+		}
+		try {
+			const response = await fetch(`/api/emails/search?q=${encodeURIComponent(query)}`);
+			const results = await response.json();
+			searchResults.set(results);
+			lastSearchedQuery.set(query);
+		} catch (error) {
+			console.error('Search error:', error);
+		}
+	};
+
+	const debouncedSearch = debounce(performSearch, 300);
+
+	$effect(() => {
+		debouncedSearch($searchQuery);
+	});
 </script>
 
 <ModeWatcher />
@@ -37,12 +75,23 @@
 			<header
 				class="group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 flex h-12 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear"
 			>
-				<div class="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
+				<div class="flex w-full items-center gap-4 px-4 lg:px-6">
 					<Sidebar.Trigger class="-ml-1" />
 					<Separator orientation="vertical" class="mx-2 data-[orientation=vertical]:h-4" />
 
-					<h1 class="text-base font-medium">{$currentTab}</h1>
+					<h1 class="mr-6 text-base font-medium">{$currentTab}</h1>
+
 					{#if isEmailRoute}
+						<div class="flex-1">
+							<IconInput
+								type="search"
+								icon={Search}
+								placeholder="Search emails..."
+								bind:value={$searchQuery}
+								class="h-8 w-full"
+							/>
+						</div>
+
 						<EmailClassificationButtons />
 					{/if}
 				</div>
