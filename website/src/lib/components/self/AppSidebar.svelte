@@ -14,7 +14,8 @@
 		UsersRound,
 		ArrowDown,
 		ArrowUp,
-		PenSquare
+		PenSquare,
+		Settings
 	} from 'lucide-svelte';
 	import { mode, setMode } from 'mode-watcher';
 	import type { HTMLAttributes } from 'svelte/elements';
@@ -34,9 +35,9 @@
 		navMore: [
 			{ title: 'Contacts', url: '/contacts', icon: UsersRound },
 			{ title: 'Scheduled', url: '/scheduled', icon: ClockFading },
-			// { title: 'All Mail', url: '/all', icon: Mails },
 			{ title: 'Spam', url: '/spam', icon: CircleAlert },
-			{ title: 'Trash', url: '/trash', icon: Trash2 }
+			{ title: 'Trash', url: '/trash', icon: Trash2 },
+			{ title: 'Settings', url: '/settings', icon: Settings }
 		]
 	};
 	let isExpanded = $state(false);

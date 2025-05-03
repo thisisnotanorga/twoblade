@@ -6,7 +6,6 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import { Toaster } from '$lib/components/ui/sonner';
 	import { currentTab } from '$lib/stores/navigation';
-	import { USER_DATA } from '$lib/stores/user';
 	import { page } from '$app/state';
 	import EmailClassificationButtons from '$lib/components/self/EmailClassificationButtons.svelte';
 	import log from '$lib/logger';
@@ -19,27 +18,14 @@
 		clearSearch
 	} from '$lib/stores/searchStore';
 	import { Search } from 'lucide-svelte';
+	import { debounce } from '$lib/utils';
 
 	log.setLevel(dev ? log.levels.DEBUG : log.levels.WARN);
 
-	let { children, data } = $props();
-
-	$effect(() => {
-		USER_DATA.set(data.user);
-	});
+	let { children } = $props();
 
 	const isAuthRoute = $derived(!!page.route.id?.startsWith('/(auth)'));
 	const isEmailRoute = $derived(page.route.id === '/index');
-
-	function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
-		let timeoutId: number | undefined;
-		return (...args: Parameters<T>) => {
-			clearTimeout(timeoutId);
-			timeoutId = window.setTimeout(() => {
-				fn(...args);
-			}, delay);
-		};
-	}
 
 	const performSearch = async (query: string) => {
 		if (!query.trim()) {

@@ -2,7 +2,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
-	return twMerge(clsx(inputs));
+    return twMerge(clsx(inputs));
 }
 
 export function getInitials(name: string): string {
@@ -53,7 +53,7 @@ export function getDominantColor(imgEl: HTMLImageElement): Promise<string> {
 
         ctx.drawImage(imgEl, 0, 0, 1, 1);
         const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-        
+
         resolve(`rgb(${r}, ${g}, ${b})`);
     });
 }
@@ -73,4 +73,15 @@ export async function downloadFile(url: string, filename: string) {
     } catch (error) {
         console.error('Download failed:', error);
     }
+}
+
+
+export function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
+    let timeoutId: number | undefined;
+    return (...args: Parameters<T>) => {
+        clearTimeout(timeoutId);
+        timeoutId = window.setTimeout(() => {
+            fn(...args);
+        }, delay);
+    };
 }
