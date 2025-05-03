@@ -553,9 +553,11 @@
 					size="lg"
 					variant="outline"
 					onclick={handleReplyClick}
+					disabled={email?.self_destruct}
+					title={email?.self_destruct ? "Cannot reply to self-destructing emails" : ""}
 				>
 					<Reply class="h-5 w-5" />
-					Reply to this conversation
+					{email?.self_destruct ? "Cannot reply to this email" : "Reply to this conversation"}
 				</Button>
 			{/if}
 		</div>
