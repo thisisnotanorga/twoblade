@@ -9,6 +9,7 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { USER_DATA } from '$lib/stores/user';
 	import { PUBLIC_DOMAIN } from '$env/static/public';
+	import { checkVocabulary } from '$lib/utils';
 
 	let notificationsEnabled = $state(false);
 
@@ -68,6 +69,23 @@
 			toast.error('Failed to update notification settings');
 		}
 	}
+	let vocabularyLimit = $derived(!$USER_DATA?.iq ? null : checkVocabulary('', $USER_DATA.iq).limit);
+
+	let vocabularyDescription = $derived(
+		vocabularyLimit === null
+			? 'No word length restrictions'
+			: `Limited to ${vocabularyLimit}-letter words`
+	);
+
+	let vocabularyInfo = $derived(
+		!$USER_DATA?.iq
+			? null
+			: {
+					iq: $USER_DATA.iq,
+					limit: vocabularyLimit,
+					description: vocabularyDescription
+				}
+	);
 </script>
 
 <div class="container max-w-5xl">
@@ -87,8 +105,20 @@
 							<span class="text-muted-foreground block text-sm font-normal">Your email address</span
 							>
 						</Label>
-						<p class="text-muted-foreground">{$USER_DATA.username}#{$USER_DATA.domain}</p>
+						<Label class="text-primary">{$USER_DATA.username}#{$USER_DATA.domain}</Label>
 					</div>
+
+					{#if vocabularyInfo}
+						<div class="flex items-center gap-4">
+							<Label class="flex-1">
+								<span>Intelligence Quotient</span>
+								<span class="text-muted-foreground block text-sm font-normal"
+									>{vocabularyInfo.description}</span
+								>
+							</Label>
+							<Label class="text-primary">{vocabularyInfo.iq} IQ</Label>
+						</div>
+					{/if}
 				</Card.Content>
 			</Card.Root>
 		{/if}
