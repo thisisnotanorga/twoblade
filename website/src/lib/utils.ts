@@ -76,12 +76,21 @@ export async function downloadFile(url: string, filename: string) {
 }
 
 
-export function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
+export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): (...args: Parameters<T>) => Promise<ReturnType<T>> {
     let timeoutId: number | undefined;
-    return (...args: Parameters<T>) => {
-        clearTimeout(timeoutId);
-        timeoutId = window.setTimeout(() => {
-            fn(...args);
-        }, delay);
+    let promiseResolve: ((value: ReturnType<T>) => void) | undefined;
+
+    return (...args: Parameters<T>): Promise<ReturnType<T>> => {
+        return new Promise((resolve) => {
+            clearTimeout(timeoutId);
+            promiseResolve = resolve;
+
+            timeoutId = window.setTimeout(async () => {
+                const result = await fn(...args);
+                if (promiseResolve) {
+                    promiseResolve(result);
+                }
+            }, delay);
+        });
     };
 }

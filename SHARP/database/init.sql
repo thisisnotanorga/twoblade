@@ -32,6 +32,7 @@ CREATE TABLE
         username VARCHAR(255) NOT NULL UNIQUE,
         domain VARCHAR(255) NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
+        iq INTEGER,
         is_banned BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP
         WITH
