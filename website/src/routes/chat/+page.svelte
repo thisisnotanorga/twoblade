@@ -1,0 +1,253 @@
+<script lang="ts">
+	import { io } from 'socket.io-client';
+	import { onMount, onDestroy } from 'svelte';
+	import { debounce, checkVocabulary, cn, getInitials, getRandomColor } from '$lib/utils';
+	import { USER_DATA } from '$lib/stores/user';
+	import { toast } from 'svelte-sonner';
+	import { PUBLIC_WEBSOCKET_URL } from '$env/static/public';
+	import { ScrollArea } from '$lib/components/ui/scroll-area';
+	import { Textarea } from '$lib/components/ui/textarea';
+	import { Button } from '$lib/components/ui/button';
+	import { Send } from 'lucide-svelte';
+	import { activeUsers } from '$lib/stores/users';
+
+	let { data } = $props();
+
+	type ChatMessage = {
+		id: string;
+		text: string;
+		fromUser: string;
+		fromIQ: number;
+		timestamp: string;
+	};
+
+	let socket: any;
+	let messages = $state<ChatMessage[]>([]);
+	let messageInput = $state('');
+	let vocabularyError = $state('');
+	let isConnected = $state(false);
+	let messagesDiv: HTMLDivElement;
+	let messagesContainer: HTMLDivElement;
+	let initialScrollDone = $state(false);
+	let shakeScreen = $state(false);
+
+	const debouncedCheckVocabulary = debounce(async () => {
+		const userIQ = $USER_DATA?.iq ?? 100;
+		if (messageInput) {
+			const { isValid, limit } = checkVocabulary(messageInput, userIQ);
+			if (!isValid) {
+				vocabularyError = `Word length exceeds limit (${limit}) for IQ ${userIQ}.`;
+			} else {
+				vocabularyError = '';
+			}
+		} else {
+			vocabularyError = '';
+		}
+	}, 300);
+
+	function scrollToBottom() {
+		setTimeout(() => {
+			if (messagesDiv) {
+				messagesDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+			}
+		}, 0);
+	}
+
+	function setupSocket() {
+		socket = io(PUBLIC_WEBSOCKET_URL, {
+			auth: { token: data.token }
+		});
+
+		socket.on('connect', () => {
+			isConnected = true;
+		});
+
+		socket.on('disconnect', () => {
+			isConnected = false;
+		});
+
+		socket.on('users_count', (count: number) => {
+			activeUsers.set(count);
+		});
+
+		socket.on('recent_messages', (recentMessages: ChatMessage[]) => {
+			messages = recentMessages;
+			scrollToBottom();
+		});
+
+		socket.on('message', (message: ChatMessage) => {
+			messages = [...messages.slice(-199), message];
+			scrollToBottom();
+		});
+
+		socket.on('error', (error: { message: string }) => {
+			toast.error(error.message);
+		});
+	}
+
+	onMount(() => {
+		setupSocket();
+	});
+
+	onDestroy(() => {
+		if (socket) socket.disconnect();
+	});
+
+	$effect(() => {
+		if (messageInput) {
+			debouncedCheckVocabulary();
+		} else {
+			vocabularyError = '';
+		}
+	});
+
+	let messageRateLimit = $state({
+		lastSent: 0,
+		cooldown: false
+	});
+
+	const MESSAGE_COOLDOWN = 500; // ~3 messages in 2s
+
+	function handleSendMessage() {
+		if (!messageInput.trim() || !isConnected || vocabularyError) return;
+
+		if (messageRateLimit.cooldown) {
+			shakeScreen = true;
+			setTimeout(() => (shakeScreen = false), 500);
+			return;
+		}
+
+		socket.emit('message', messageInput);
+		messageInput = '';
+
+		messageRateLimit.cooldown = true;
+		messageRateLimit.lastSent = Date.now();
+
+		setTimeout(() => {
+			messageRateLimit.cooldown = false;
+		}, MESSAGE_COOLDOWN);
+	}
+
+	function formatTime(date: string) {
+		return new Date(date).toLocaleTimeString([], {
+			hour: '2-digit',
+			minute: '2-digit'
+		});
+	}
+
+	const channel = {
+		name: 'Twoblade Chat',
+		description: 'Global chat room for IQ-based discussions'
+	};
+
+	$effect(() => {
+		if (messages.length && messagesDiv) {
+			messagesDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+		}
+	});
+
+	$effect(() => {
+		if (messages.length && messagesContainer && !initialScrollDone) {
+			messagesContainer.scrollIntoView({ block: 'end' });
+			initialScrollDone = true;
+		}
+	});
+</script>
+
+<div class="flex h-[calc(100vh-6rem)] w-full flex-col" class:shake={shakeScreen}>
+	<ScrollArea class="flex-1">
+		<div class="flex flex-col p-4" bind:this={messagesContainer}>
+			<div bind:this={messagesDiv}>
+				{#each messages as message}
+					<div class="animate-message-appear mb-4 flex items-start gap-3">
+						<div
+							class={cn(
+								'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full',
+								getRandomColor(message.fromUser)
+							)}
+						>
+							<span class="text-xs font-medium">{getInitials(message.fromUser.split('#')[0])}</span>
+						</div>
+						<div class="min-w-0 flex-1">
+							<div class="flex items-center gap-2">
+								<span class="text-sm font-medium">{message.fromUser}</span>
+								<span class="bg-primary/10 text-primary rounded px-2 py-0.5 text-xs">
+									{message.fromIQ} IQ
+								</span>
+								<span class="text-muted-foreground text-xs">
+									{formatTime(message.timestamp)}
+								</span>
+							</div>
+							<p class="text-sm">{message.text}</p>
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
+	</ScrollArea>
+
+	<div class="bg-background w-full border-t p-4">
+		<div class="flex gap-2">
+			<Textarea
+				bind:value={messageInput}
+				placeholder="Write a message..."
+				class="h-10 min-h-0 resize-none"
+				rows={1}
+				onkeydown={(e) =>
+					e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
+			/>
+			<Button
+				variant="default"
+				onclick={handleSendMessage}
+				disabled={!isConnected || !!vocabularyError || messageRateLimit.cooldown}
+			>
+				<Send />
+			</Button>
+		</div>
+		{#if vocabularyError}
+			<p class="text-destructive mt-2 text-xs">{vocabularyError}</p>
+		{/if}
+	</div>
+</div>
+
+<style>
+	.animate-message-appear {
+		animation: message-appear 0.3s ease-out forwards;
+	}
+
+	@keyframes message-appear {
+		from {
+			opacity: 0;
+			transform: translateY(10px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.shake {
+		animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+		transform: translate3d(0, 0, 0);
+	}
+
+	@keyframes shake {
+		10%,
+		90% {
+			transform: translate3d(-1px, 0, 0);
+		}
+		20%,
+		80% {
+			transform: translate3d(2px, 0, 0);
+		}
+		30%,
+		50%,
+		70% {
+			transform: translate3d(-4px, 0, 0);
+		}
+		40%,
+		60% {
+			transform: translate3d(4px, 0, 0);
+		}
+	}
+</style>

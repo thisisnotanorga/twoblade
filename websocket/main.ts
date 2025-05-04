@@ -1,0 +1,166 @@
+import { Server } from 'socket.io';
+import { jwtVerify } from 'jose';
+import postgres from 'postgres';
+import { checkVocabulary } from '../website/src/lib/utils';
+import { config } from 'dotenv';
+import { join } from 'path';
+import { checkHardcore } from '../website/src/lib/server/moderation';
+
+config({ path: join(__dirname, '../website/.env') });
+
+const RATE_LIMIT = {
+    messages: 3,
+    window: 2000
+};
+
+interface User {
+    id: number;
+    username: string;
+    domain: string;
+    iq: number;
+    is_banned: boolean;
+}
+
+interface UserSecretCode {
+    user_id: number;
+}
+
+const JWT_SECRET = process.env.JWT_SECRET!;
+const DATABASE_URL = process.env.DATABASE_URL!;
+const PORT = process.env.WS_PORT || 3001;
+
+const sql = postgres(DATABASE_URL);
+
+const secret = new TextEncoder().encode(JWT_SECRET);
+const alg = 'HS256';
+
+const messages: Array<{
+    id: string;
+    text: string;
+    fromUser: string;
+    fromIQ: number;
+    timestamp: string;
+}> = [];
+
+const io = new Server({
+    cors: {
+        origin: process.env.NODE_ENV === 'production'
+            ? process.env.PUBLIC_DOMAIN
+            : "http://localhost:5173",
+        credentials: true
+    }
+});
+
+io.use(async (socket, next) => {
+    const token = socket.handshake.auth.token;
+    if (!token) return next(new Error('Authentication required'));
+
+    try {
+        const { payload } = await jwtVerify(token, secret, { algorithms: [alg] });
+
+        const codes = await sql<UserSecretCode[]>`
+            SELECT user_id FROM user_secret_codes 
+            WHERE code = ${payload.code as string}
+        `;
+
+        if (codes.length === 0) {
+            console.warn(`JWT verification failed: Code ${payload.code} not found`);
+            return next(new Error('Invalid authentication'));
+        }
+
+        const users = await sql<User[]>`
+            SELECT id, username, domain, iq, is_banned 
+            FROM users 
+            WHERE id = ${payload.userId as number}
+        `;
+
+        const user = users[0];
+        if (!user) {
+            return next(new Error('User not found'));
+        }
+
+        if (user.is_banned) {
+            await sql`
+                DELETE FROM user_secret_codes 
+                WHERE code = ${payload.code as string}
+            `;
+            return next(new Error('User is banned'));
+        }
+
+        socket.data.user = user;
+        next();
+    } catch (error) {
+        console.error('Socket auth error:', error);
+        next(new Error('Authentication failed'));
+    }
+});
+
+const userMessageTimestamps: Map<number, number[]> = new Map();
+let connectedUsers = new Set();
+
+io.on('connection', (socket) => {
+    const user = socket.data.user as User;
+    connectedUsers.add(user.id);
+
+    io.emit('users_count', connectedUsers.size);
+
+    console.log(`User connected: ${user.username}#${user.domain}`);
+
+    socket.emit('recent_messages', messages.slice(-200));
+
+    socket.on('message', async (text: string) => {
+        if (!text?.trim()) return;
+
+        if (checkHardcore(text)) {
+            socket.emit('error', {
+                message: 'Your message was blocked due to inappropriate content.'
+            });
+            return;
+        }
+
+        const now = Date.now();
+        const userTimestamps = userMessageTimestamps.get(user.id) || [];
+        const recentMessages = userTimestamps.filter(ts => now - ts < RATE_LIMIT.window);
+
+        if (recentMessages.length >= RATE_LIMIT.messages) {
+            socket.emit('error', {
+                message: `You're sending messages too quickly. Please wait ${RATE_LIMIT.window / 1000} seconds.`
+            });
+            return;
+        }
+
+        userTimestamps.push(now);
+        userMessageTimestamps.set(user.id, userTimestamps);
+
+        const { isValid, limit } = checkVocabulary(text, user.iq);
+        if (!isValid) {
+            socket.emit('error', {
+                message: `Message contains words longer than your ${limit}-character limit.`
+            });
+            return;
+        }
+
+        const message = {
+            id: crypto.randomUUID(),
+            text,
+            fromUser: `${user.username}#${user.domain}`,
+            fromIQ: user.iq,
+            timestamp: new Date().toISOString()
+        };
+
+        messages.push(message);
+        if (messages.length > 200) messages.shift();
+
+        io.emit('message', message);
+    });
+
+    socket.on('disconnect', () => {
+        userMessageTimestamps.delete(user.id);
+        connectedUsers.delete(user.id);
+        io.emit('users_count', connectedUsers.size);
+        console.log(`User disconnected: ${user.username}#${user.domain}`);
+    });
+});
+
+console.log(`WebSocket server starting on port ${PORT}...`);
+io.listen(Number(PORT));

@@ -27,6 +27,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { Email } from '$lib/types/email';
+	import { activeUsers } from '$lib/stores/users';
 
 	log.setLevel(dev ? log.levels.DEBUG : log.levels.WARN);
 
@@ -34,6 +35,7 @@
 
 	const isAuthRoute = $derived(!!page.route.id?.startsWith('/(auth)'));
 	const isEmailRoute = $derived(page.route.id === '/index');
+	const isChatRoute = $derived(page.route.id === '/chat');
 
 	const performSearch = async (query: string) => {
 		if (!query.trim()) {
@@ -68,7 +70,7 @@
 								onClick: async () => {
 									log.debug('Refreshing page to update service worker...');
 									newSW.postMessage({ type: 'SKIP_WAITING' });
-									window.location.reload()
+									window.location.reload();
 								}
 							}
 						});
@@ -111,7 +113,7 @@
 		detectSWUpdate();
 	});
 
-	async function showEmailNotification(count: number) {		
+	async function showEmailNotification(count: number) {
 		console.log('Showing email notification:', $lastPollTime.toString(), count);
 		const note = new Notification('New Emails', {
 			body: `You have ${count} new email${count > 1 ? 's' : ''}`,
@@ -127,9 +129,9 @@
 
 	let isFirstPoll = $state(true);
 
-	async function pollForNewEmails() {		
+	async function pollForNewEmails() {
 		if (!browser || $isOffline || !page.data.user || $isPolling) return;
-		
+
 		$isPolling = true;
 
 		try {
@@ -147,15 +149,19 @@
 			const data = await res.json();
 			const seen = $seenEmailIds;
 			const trulyNewEmails = data.emails?.filter((e: Email) => !seen.has(e.id)) || [];
-			
+
 			if (data.emails?.length > 0) {
-				seenEmailIds.update(currentSet => {
+				seenEmailIds.update((currentSet) => {
 					const updatedSet = new Set(currentSet);
 					data.emails.forEach((e: Email) => updatedSet.add(e.id));
 					return updatedSet;
 				});
 
-				if (trulyNewEmails.length > 0 && !isFirstPoll && $USER_DATA?.settings?.notifications_enabled) {
+				if (
+					trulyNewEmails.length > 0 &&
+					!isFirstPoll &&
+					$USER_DATA?.settings?.notifications_enabled
+				) {
 					await showEmailNotification(trulyNewEmails.length);
 				}
 
@@ -184,6 +190,20 @@
 				clearInterval(pollInterval);
 			}
 		};
+	});
+
+	$effect(() => {
+		const route = page.route.id;
+		if (route === '/chat') $currentTab = 'Chat';
+		else if (route === '/starred') $currentTab = 'Starred';
+		else if (route === '/snoozed') $currentTab = 'Snoozed';
+		else if (route === '/sent') $currentTab = 'Sent';
+		else if (route === '/drafts') $currentTab = 'Drafts';
+		else if (route === '/contacts') $currentTab = 'Contacts';
+		else if (route === '/scheduled') $currentTab = 'Scheduled';
+		else if (route === '/spam') $currentTab = 'Spam';
+		else if (route === '/settings') $currentTab = 'Settings';
+		else $currentTab = 'Inbox';
 	});
 </script>
 
@@ -217,6 +237,18 @@
 						</div>
 
 						<EmailClassificationButtons />
+					{/if}
+
+					{#if isChatRoute}
+						<div class="flex items-center gap-2">
+							<span class="relative flex h-3 w-3">
+								<span
+									class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"
+								></span>
+								<span class="relative inline-flex h-3 w-3 rounded-full bg-green-500"></span>
+							</span>
+							<span class="text-muted-foreground text-sm">{$activeUsers} online</span>
+						</div>
 					{/if}
 				</div>
 			</header>

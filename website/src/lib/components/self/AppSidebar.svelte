@@ -14,7 +14,8 @@
 		ArrowDown,
 		ArrowUp,
 		PenSquare,
-		Settings
+		Settings,
+		MessageCircle
 	} from 'lucide-svelte';
 	import { mode, setMode } from 'mode-watcher';
 	import type { HTMLAttributes } from 'svelte/elements';
@@ -26,6 +27,7 @@
 	const data = {
 		navMain: [
 			{ title: 'Inbox', url: '/index', icon: Inbox },
+			{ title: 'Chat', url: '/chat', icon: MessageCircle },
 			{ title: 'Starred', url: '/starred', icon: Star },
 			{ title: 'Snoozed', url: '/snoozed', icon: Clock },
 			{ title: 'Sent', url: '/sent', icon: Send },
