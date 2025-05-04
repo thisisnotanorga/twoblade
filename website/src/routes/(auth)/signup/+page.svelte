@@ -187,6 +187,18 @@
 			usernameError = '';
 		}
 	});
+
+	function scrambleText(text: string) {
+		return text
+			.split('')
+			.map((char) => {
+				if (char === ' ') return ' ';
+				return `<span class="relative">${char}<span class="select-none absolute left-0 opacity-0">${String.fromCharCode(
+					8203
+				)}${String.fromCharCode(Math.random() * 1000 + 8000)}</span></span>`;
+			})
+			.join('');
+	}
 </script>
 
 <div class="flex h-screen items-center justify-center">
@@ -364,8 +376,8 @@
 							</div>
 						{:else if currentQuestion}
 							<div class="space-y-4">
-								<div class="text-lg font-medium">
-									{currentQuestion.question}
+								<div class="select-none text-lg font-medium">
+									{@html scrambleText(currentQuestion.question)}
 								</div>
 
 								{#if currentQuestion.imageUrls}
@@ -390,10 +402,10 @@
 										{#each currentQuestion.options as option, i}
 											<Button
 												variant="outline"
-												class="w-full justify-start text-left"
+												class="w-full select-none justify-start text-left"
 												onclick={() => handleAnswer(i)}
 											>
-												{option}
+												{@html scrambleText(option)}
 											</Button>
 										{/each}
 									</div>
@@ -415,5 +427,12 @@
 		to {
 			opacity: 1;
 		}
+	}
+
+	span {
+		user-select: none;
+		-webkit-user-select: none;
+		-moz-user-select: none;
+		-ms-user-select: none;
 	}
 </style>
