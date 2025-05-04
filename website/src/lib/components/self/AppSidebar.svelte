@@ -10,7 +10,6 @@
 		NotepadTextIcon,
 		ClockFading,
 		CircleAlert,
-		Trash2,
 		UsersRound,
 		ArrowDown,
 		ArrowUp,
@@ -36,7 +35,6 @@
 			{ title: 'Contacts', url: '/contacts', icon: UsersRound },
 			{ title: 'Scheduled', url: '/scheduled', icon: ClockFading },
 			{ title: 'Spam', url: '/spam', icon: CircleAlert },
-			{ title: 'Trash', url: '/trash', icon: Trash2 },
 			{ title: 'Settings', url: '/settings', icon: Settings }
 		]
 	};
