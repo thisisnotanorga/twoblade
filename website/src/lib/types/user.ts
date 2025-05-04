@@ -8,6 +8,7 @@ export interface UserSessionData {
     domain: string;
     is_banned: boolean;
     created_at: string;
+    iq: number;
 }
 
 export interface User extends UserSessionData {

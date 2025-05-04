@@ -8,6 +8,7 @@
 	import { Beaker, TestTubeDiagonal } from 'lucide-svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { USER_DATA } from '$lib/stores/user';
+	import { PUBLIC_DOMAIN } from '$env/static/public';
 
 	let notificationsEnabled = $state(false);
 
@@ -73,6 +74,24 @@
 	<h1 class="mb-8 text-3xl font-bold">Settings</h1>
 
 	<div class="space-y-6">
+		{#if $USER_DATA}
+			<Card.Root>
+				<Card.Header>
+					<Card.Title>Account</Card.Title>
+					<Card.Description>Manage your account settings</Card.Description>
+				</Card.Header>
+				<Card.Content class="space-y-4">
+					<div class="flex items-center gap-4">
+						<Label for="email" class="flex-1">
+							<span>Email</span>
+							<span class="text-muted-foreground block text-sm font-normal">Your email address</span
+							>
+						</Label>
+						<p class="text-muted-foreground">{$USER_DATA.username}#{$USER_DATA.domain}</p>
+					</div>
+				</Card.Content>
+			</Card.Root>
+		{/if}
 		<Card.Root>
 			<Card.Header>
 				<Card.Title>Email Preferences</Card.Title>

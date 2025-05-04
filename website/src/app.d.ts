@@ -7,6 +7,7 @@ type UserSessionData = {
 	domain: string;
 	is_banned: boolean;
 	created_at: string;
+	iq: number;
 } | null;
 
 declare global {

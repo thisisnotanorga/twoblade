@@ -19,6 +19,7 @@
 	import { HashcashPool } from '$lib/hashcash';
 	import { onDestroy } from 'svelte';
 	import log from '$lib/logger';
+	import { debounce, checkVocabulary } from '$lib/utils';
 
 	const EXPIRY_OPTIONS = [
 		{ label: '10 minutes', minutes: 10 },
@@ -56,6 +57,7 @@
 		null
 	);
 	let isRetrying = $state(false);
+	let vocabularyError = $state('');
 
 	const hashcashPool = new HashcashPool();
 
@@ -129,10 +131,27 @@
 			contentType: htmlMode ? 'text/html' : 'text/plain',
 			htmlBody: htmlMode ? htmlBody : null
 		};
-		if (content.body) {
+		debouncedCheckVocabulary();
+
+		if (content.body || content.htmlBody) {
 			autoSaveTimeout = window.setTimeout(() => saveDraft(content), 1500);
 		}
 	}
+
+	const debouncedCheckVocabulary = debounce(async () => {
+		const contentToCheck = htmlMode ? htmlBody || '' : body || '';
+		const userIQ = $USER_DATA?.iq ?? 100;
+		if (contentToCheck) {
+			const { isValid, limit } = checkVocabulary(contentToCheck, userIQ);
+			if (!isValid) {
+				vocabularyError = `Word length exceeds limit (${limit}) for IQ ${userIQ}.`;
+			} else {
+				vocabularyError = '';
+			}
+		} else {
+			vocabularyError = '';
+		}
+	}, 500);
 
 	async function fetchServerConfig() {
 		try {
@@ -180,7 +199,23 @@
 	async function handleSubmit(event: { preventDefault: () => void }) {
 		event.preventDefault();
 		const contentType: EmailContentType = htmlMode ? 'text/html' : 'text/plain';
+		const contentToCheck = htmlMode ? htmlBody || '' : body || '';
 		isStatusVisible = true;
+		statusColor = 'default';
+		vocabularyError = '';
+
+		const userIQ = $USER_DATA?.iq ?? 100;
+		if (contentToCheck) {
+			const { isValid, limit } = checkVocabulary(contentToCheck, userIQ);
+			if (!isValid) {
+				status = `Your message contains words longer than the allowed ${limit} characters for your IQ level (${userIQ}). Please simplify.`;
+				statusColor = 'destructive';
+				isRetrying = false;
+				return;
+			}
+		}
+
+		vocabularyError = '';
 
 		try {
 			status = 'Computing SHARP requirements...';
@@ -266,6 +301,7 @@
 		}
 		if (!open) {
 			resetForm();
+			vocabularyError = '';
 		}
 	}
 
@@ -337,6 +373,10 @@
 							class="min-h-[300px]"
 							placeholder="Write your message here..."
 						/>
+					{/if}
+
+					{#if vocabularyError}
+						<p class="text-destructive text-xs">{vocabularyError}</p>
 					{/if}
 				</div>
 			</div>

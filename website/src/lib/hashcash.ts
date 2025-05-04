@@ -90,26 +90,9 @@ export class HashcashPool {
             return first.token;
         }
 
-        const miningPromise = this.mining.get(recipient);
-        if (miningPromise) {
-            log.debug(`Waiting for ongoing background mining for ${recipient}...`);
-            await miningPromise;
-
-            tokens = this.tokens.get(recipient);
-            if (tokens?.length) {
-                log.debug(`Using token mined in background for ${recipient}. Pool size: ${tokens.length - 1}`);
-                const [first, ...rest] = tokens;
-                this.tokens.set(recipient, rest);
-
-                return first.token;
-            }
-
-            log.debug(`Background mining finished but no token available for ${recipient}. Generating synchronously...`);
-        } else {
-            log.debug(`No pre-mined token and no background mining running for ${recipient}. Generating synchronously...`);
-        }
-
+        log.debug(`No pre-mined token available for ${recipient}. Generating synchronously...`);
         const token = await generateHashcash(recipient, this.minDifficulty, this.abortController.signal);
+
         this.ensurePoolFilled(recipient);
         return token;
     }

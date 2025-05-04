@@ -28,6 +28,10 @@
 	import FileAttachment from './FileAttachment.svelte';
 	import { IMAGE_TYPES, MAX_FILES, type ImageType } from '$lib/types/attachment';
 	import { toast } from 'svelte-sonner';
+	import { HashcashPool } from '$lib/hashcash';
+	import { onDestroy } from 'svelte';
+	import log from '$lib/logger';
+	import { debounce, checkVocabulary } from '$lib/utils';
 
 	function isImageAttachment(type: string): boolean {
 		return IMAGE_TYPES.includes(type as ImageType);
@@ -55,6 +59,7 @@
 
 	let attachmentComponent: Attachment | null = $state(null);
 	let isSending = $state(false);
+	let vocabularyError = $state('');
 
 	const sanitizeConfig: Config = {
 		ALLOWED_TAGS: [...ALLOWED_HTML_TAGS],
@@ -107,6 +112,21 @@
 				);
 				threadEmails = sortedEmails;
 
+				// FETCH IQ
+				const uniqueAddresses = new Set(sortedEmails.map((e: Email) => e.from_address));
+				const newIQs = new Map<string, number | null>();
+
+				await Promise.all(
+					Array.from(uniqueAddresses as Set<string>).map(async (address: string) => {
+						const iq = await getUserIQ(address);
+						newIQs.set(address, iq);
+					})
+				);
+
+				emailIQs = newIQs;
+
+				// END FETCH IQ
+
 				const initialEmailIndex = sortedEmails.findIndex((e: Email) => e.id === email.id);
 
 				const newExpandedSet = new Set<string>();
@@ -148,8 +168,32 @@
 		isReplying = true;
 	}
 
+	const debouncedCheckReplyVocabulary = debounce(async () => {
+		const userIQ = $USER_DATA?.iq ?? 100;
+		if (replyText) {
+			const { isValid, limit } = checkVocabulary(replyText, userIQ);
+			if (!isValid) {
+				vocabularyError = `Word length exceeds limit (${limit}) for IQ ${userIQ}.`;
+			} else {
+				vocabularyError = '';
+			}
+		} else {
+			vocabularyError = '';
+		}
+	}, 500);
+
+	$effect(() => {
+		if (isReplying && replyText) {
+			debouncedCheckReplyVocabulary();
+		} else {
+			vocabularyError = '';
+		}
+	});
+
 	async function handleSendReply() {
 		if (!replyText.trim() || !email || !replyRecipient || !$USER_DATA || isSending) return;
+
+		vocabularyError = '';
 
 		isSending = true;
 		const sendToastId = toast.loading('Sending email...');
@@ -173,6 +217,10 @@
 				toast.loading('Sending email...', { id: sendToastId });
 			}
 
+			toast.loading('Computing SHARP requirements...', { id: sendToastId });
+			const hashcash = await hashcashPool.getToken(replyRecipient);
+			toast.loading('Sending email...', { id: sendToastId });
+
 			const currentUserEmail = `${$USER_DATA.username}#${PUBLIC_DOMAIN}`;
 
 			const emailData = {
@@ -184,7 +232,8 @@
 				html_body: htmlMode ? replyText : null,
 				reply_to_id: email.id,
 				thread_id: email.thread_id || email.id,
-				attachments: finalAttachments
+				attachments: finalAttachments,
+				hashcash
 			};
 
 			const response = await fetch('/api/emails/new', {
@@ -234,6 +283,15 @@
 				await loadThreadEmails(email);
 			} else {
 				const errorData = await response.json();
+
+				if (response.status === 429 && errorData.retryWithHigherDifficulty && !isRetrying) {
+					log.warn(`Received 429: ${errorData.message}. Retrying...`);
+					toast.loading('Taking an extra moment to verify your email...', { id: sendToastId });
+					isRetrying = true;
+
+					throw new Error(`Proof of work insufficient. Please try sending again.`);
+				}
+				isRetrying = false;
 				throw new Error(`API Error ${response.status}: ${JSON.stringify(errorData)}`);
 			}
 		} catch (error) {
@@ -370,6 +428,57 @@
 	) {
 		attachments = files;
 	}
+
+	async function getUserIQ(emailAddress: string): Promise<number | null> {
+		try {
+			const username = emailAddress.split('#')[0];
+			const response = await fetch(`/api/users/${username}/iq`);
+			if (response.ok) {
+				const data = await response.json();
+				return data.iq;
+			}
+		} catch (error) {
+			console.error('Failed to fetch user IQ:', error);
+		}
+		return null;
+	}
+
+	let emailIQs = $state(new Map<string, number | null>());
+
+	const hashcashPool = new HashcashPool();
+	let serverConfig = $state<{ hashcash: { minBits: number; recommendedBits: number } } | null>(
+		null
+	);
+	let isRetrying = $state(false);
+
+	async function fetchServerConfig() {
+		try {
+			const response = await fetch(`https://${PUBLIC_DOMAIN}/api/server/health`);
+			if (response.ok) {
+				serverConfig = await response.json();
+				if (serverConfig?.hashcash?.recommendedBits) {
+					hashcashPool.setMinBits(serverConfig.hashcash.recommendedBits);
+				}
+			}
+		} catch (error) {
+			console.error('Failed to fetch server config:', error);
+		}
+	}
+
+	$effect(() => {
+		fetchServerConfig();
+	});
+
+	$effect(() => {
+		if (replyRecipient && replyRecipient.includes('#')) {
+			log.debug(`Reply recipient set to ${replyRecipient}, ensuring pool is filled.`);
+			hashcashPool.ensurePoolFilled(replyRecipient);
+		}
+	});
+
+	onDestroy(() => {
+		hashcashPool.cleanup();
+	});
 </script>
 
 {#if email}
@@ -413,6 +522,11 @@
 									>
 								</div>
 								<span class="font-medium">{threadEmail.from_address}</span>
+								{#if emailIQs.has(threadEmail.from_address) && emailIQs.get(threadEmail.from_address) !== null}
+									<span class="bg-primary/10 text-primary rounded px-2 py-0.5 text-xs font-medium">
+										{emailIQs.get(threadEmail.from_address)} IQ
+									</span>
+								{/if}
 								<span class="text-muted-foreground text-sm">
 									{formatDate(threadEmail.sent_at)}
 								</span>
@@ -492,7 +606,7 @@
 								size="sm"
 								class="transition-colors"
 								onclick={handleSendReply}
-								disabled={!replyText.trim() || isSending}
+								disabled={!replyText.trim() || isSending || !!vocabularyError}
 							>
 								{#if isSending}
 									<LoaderCircle class="h-4 w-4 animate-spin" />
@@ -541,10 +655,13 @@
 										>Attach files ({attachments.length}/{MAX_FILES})</Tooltip.Content
 									>
 								</Tooltip.Root>
+
+								{#if vocabularyError}
+									<p class="text-destructive text-xs">{vocabularyError}</p>
+								{/if}
 							</div>
 						</div>
 					</div>
-
 					<Attachment bind:this={attachmentComponent} onFilesChange={handleFilesChange} />
 				</div>
 			{:else}
@@ -554,10 +671,10 @@
 					variant="outline"
 					onclick={handleReplyClick}
 					disabled={email?.self_destruct}
-					title={email?.self_destruct ? "Cannot reply to self-destructing emails" : ""}
+					title={email?.self_destruct ? 'Cannot reply to self-destructing emails' : ''}
 				>
 					<Reply class="h-5 w-5" />
-					{email?.self_destruct ? "Cannot reply to this email" : "Reply to this conversation"}
+					{email?.self_destruct ? 'Cannot reply to this email' : 'Reply to this conversation'}
 				</Button>
 			{/if}
 		</div>

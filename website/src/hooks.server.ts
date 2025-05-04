@@ -11,7 +11,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         if (payload) {
             try {
                 const users = await sql`
-                    SELECT id, username, domain, is_banned, created_at
+                    SELECT id, username, domain, is_banned, created_at, iq
                     FROM users
                     WHERE id = ${payload.userId} AND is_banned = FALSE
                 `;
@@ -24,7 +24,8 @@ export const handle: Handle = async ({ event, resolve }) => {
                         username: rawUser.username as string,
                         domain: rawUser.domain as string,
                         is_banned: rawUser.is_banned as boolean,
-                        created_at: rawUser.created_at instanceof Date ? rawUser.created_at.toISOString() : String(rawUser.created_at)
+                        created_at: rawUser.created_at instanceof Date ? rawUser.created_at.toISOString() : String(rawUser.created_at),
+                        iq: rawUser.iq,
                     };
                 } else {
                     await deleteCode(payload.code);

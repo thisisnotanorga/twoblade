@@ -10,10 +10,9 @@ export const load: LayoutServerLoad = async (event) => {
         const user = requireAuth(event);
         return { user };
     } catch (error) {
-        // Return null for user when offline or authentication fails
-        return { 
+        return {
             user: null,
-            offline: true 
+            offline: true
         };
     }
 };

@@ -1,6 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { PUBLIC_DOMAIN } from '$env/static/public';
+import { sql } from '$lib/server/db';
+import { checkVocabulary } from '$lib/utils';
 
 export const POST: RequestHandler = async ({ request, cookies }) => {
     try {
@@ -12,7 +14,6 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
             }, { status: 401 });
         }
 
-        // Check server status first
         const statusUrl = `https://${PUBLIC_DOMAIN}/api/server/health`;
         const statusResponse = await fetch(statusUrl);
 
@@ -24,10 +25,10 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
         }
 
         const emailData = await request.json();
-        const { 
-            from, to, subject, body, 
-            content_type = 'text/plain', 
-            html_body, 
+        let {
+            from, to, subject, body,
+            content_type = 'text/plain',
+            html_body,
             scheduled_at = null,
             reply_to_id = null,
             thread_id = null,
@@ -36,7 +37,38 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
             self_destruct = false,
             hashcash
         } = emailData;
-        console.log(hashcash, 'hashcash');
+
+        try {
+            const username = from.split('#')[0];
+            if (username) {
+                const users = await sql`
+                    SELECT iq FROM users WHERE username = ${username}
+                `;
+                const userIQ = users[0]?.iq;
+
+                const textToCheck = content_type === 'text/html' ? (html_body || body || '') : (body || '');
+
+                if (textToCheck) {
+                    const { isValid, limit } = checkVocabulary(textToCheck, userIQ);
+                    if (!isValid) {
+                        return json({
+                            status: 'error',
+                            message: `Your message contains words longer than the allowed ${limit} characters for your IQ level. Please simplify your language.`
+                        }, { status: 400 });
+                    }
+                }
+            } else {
+                console.warn("Could not extract username from 'from' address:", from);
+            }
+        } catch (dbError) {
+            console.error("Error fetching user IQ or checking vocabulary:", dbError);
+
+            return json({
+                status: 'error',
+                message: 'Could not verify vocabulary requirements due to a server error.'
+            }, { status: 500 });
+        }
+
         const apiUrl = `https://${PUBLIC_DOMAIN}/api/send`;
 
         const response = await fetch(apiUrl, {
@@ -45,9 +77,10 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${authToken}`
             },
-            body: JSON.stringify({ 
-                from, to, subject, body, 
-                content_type, html_body, scheduled_at,
+            body: JSON.stringify({
+                from, to, subject, body,
+                content_type, html_body,
+                scheduled_at,
                 reply_to_id, thread_id,
                 attachments,
                 expires_at,
