@@ -6,10 +6,11 @@
 	import { toast } from 'svelte-sonner';
 	import { PUBLIC_WEBSOCKET_URL } from '$env/static/public';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
-	import { Textarea } from '$lib/components/ui/textarea';
+	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
 	import { Send, Hammer } from 'lucide-svelte';
 	import { activeUsers } from '$lib/stores/users';
+	import { proxyUrl } from '$lib/utils/proxyUrl';
 
 	let { data } = $props();
 	let isAdmin = $state(data.isAdmin || false);
@@ -225,11 +226,10 @@
 
 	<div class="bg-background w-full border-t p-4">
 		<div class="flex gap-2">
-			<Textarea
+			<Input
 				bind:value={messageInput}
 				placeholder={isBanned ? 'You are banned' : 'Write a message...'}
-				class="h-10 min-h-0 resize-none"
-				rows={1}
+				class="h-10"
 				onkeydown={(e) =>
 					!isBanned &&
 					e.key === 'Enter' &&

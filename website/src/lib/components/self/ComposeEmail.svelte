@@ -139,10 +139,9 @@
 	}
 
 	const debouncedCheckVocabulary = debounce(async () => {
-		const contentToCheck = htmlMode ? htmlBody || '' : body || '';
 		const userIQ = $USER_DATA?.iq ?? 100;
-		if (contentToCheck) {
-			const { isValid, limit } = checkVocabulary(contentToCheck, userIQ);
+		if (body) {
+			const { isValid, limit } = checkVocabulary(body, userIQ);
 			if (!isValid) {
 				vocabularyError = `Word length exceeds limit (${limit}) for IQ ${userIQ}.`;
 			} else {
@@ -199,14 +198,13 @@
 	async function handleSubmit(event: { preventDefault: () => void }) {
 		event.preventDefault();
 		const contentType: EmailContentType = htmlMode ? 'text/html' : 'text/plain';
-		const contentToCheck = htmlMode ? htmlBody || '' : body || '';
 		isStatusVisible = true;
 		statusColor = 'default';
 		vocabularyError = '';
 
 		const userIQ = $USER_DATA?.iq ?? 100;
-		if (contentToCheck) {
-			const { isValid, limit } = checkVocabulary(contentToCheck, userIQ);
+		if (body) {
+			const { isValid, limit } = checkVocabulary(body, userIQ);
 			if (!isValid) {
 				status = `Your message contains words longer than the allowed ${limit} characters for your IQ level (${userIQ}). Please simplify.`;
 				statusColor = 'destructive';

@@ -32,6 +32,7 @@
 	import { onDestroy } from 'svelte';
 	import log from '$lib/logger';
 	import { debounce, checkVocabulary } from '$lib/utils';
+	import { proxyUrl } from '$lib/utils/proxyUrl';
 
 	function isImageAttachment(type: string): boolean {
 		return IMAGE_TYPES.includes(type as ImageType);
@@ -82,7 +83,20 @@
 		if (!email) return '';
 		if (email.content_type === 'text/html' && email.html_body) {
 			const processedHtml = processThemeStyles(email.html_body, currentMode);
+			
+			DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+				if (node.tagName === 'IMG') {
+					const originalSrc = node.getAttribute('src');
+					if (originalSrc) {
+						node.setAttribute('src', proxyUrl(originalSrc));
+					}
+				}
+			});
+			
 			const sanitized = DOMPurify.sanitize(processedHtml, sanitizeConfig);
+			
+			DOMPurify.removeHook('afterSanitizeAttributes');
+			
 			return sanitized;
 		}
 		return email.body || '';
@@ -169,6 +183,11 @@
 	}
 
 	const debouncedCheckReplyVocabulary = debounce(async () => {
+		if (htmlMode) {
+			vocabularyError = '';
+			return;
+		}
+
 		const userIQ = $USER_DATA?.iq ?? 100;
 		if (replyText) {
 			const { isValid, limit } = checkVocabulary(replyText, userIQ);

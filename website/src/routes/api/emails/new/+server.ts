@@ -46,10 +46,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
                 `;
                 const userIQ = users[0]?.iq;
 
-                const textToCheck = content_type === 'text/html' ? (html_body || body || '') : (body || '');
-
-                if (textToCheck) {
-                    const { isValid, limit } = checkVocabulary(textToCheck, userIQ);
+                if (content_type === 'text/plain' && body) {
+                    const { isValid, limit } = checkVocabulary(body, userIQ);
                     if (!isValid) {
                         return json({
                             status: 'error',
