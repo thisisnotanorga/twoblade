@@ -320,5 +320,22 @@
 				</div>
 			</Card.Content>
 		</Card.Root>
+
+		<Card.Root>
+			<Card.Header>
+				<Card.Title>Legal</Card.Title>
+				<Card.Description>Read our policies and legal documents</Card.Description>
+			</Card.Header>
+			<Card.Content class="space-y-4">
+				<div class="flex items-center justify-between">
+					<Label class="flex-1">Terms of Service</Label>
+					<a href="/legal/terms" class="text-primary hover:underline">View</a>
+				</div>
+				<div class="flex items-center justify-between">
+					<Label class="flex-1">Privacy Policy</Label>
+					<a href="/legal/privacy" class="text-primary hover:underline">View</a>
+				</div>
+			</Card.Content>
+		</Card.Root>
 	</div>
 </div>

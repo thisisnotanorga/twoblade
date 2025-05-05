@@ -133,7 +133,7 @@
 	let isFirstPoll = $state(true);
 
 	async function pollForNewEmails() {
-		if (!browser || $isOffline || !page.data.user || $isPolling) return;
+		if (!browser || $isOffline || !$USER_DATA || !page.data.user || $isPolling) return;
 
 		$isPolling = true;
 
@@ -196,6 +196,7 @@
 	});
 
 	$effect(() => {
+		if (!$USER_DATA) return;
 		const route = page.route.id;
 		if (route === '/chat') $currentTab = 'Chat';
 		else if (route === '/starred') $currentTab = 'Starred';
@@ -207,6 +208,8 @@
 		else if (route === '/spam') $currentTab = 'Spam';
 		else if (route === '/settings') $currentTab = 'Settings';
 		else if (route === '/admin') $currentTab = 'Admin';
+		else if (route === '/legal/privacy') $currentTab = 'Privacy Policy';
+		else if (route === '/legal/terms') $currentTab = 'Terms of Service';
 		else $currentTab = 'Inbox';
 	});
 </script>
@@ -215,11 +218,11 @@
 <Toaster richColors />
 
 <Sidebar.Provider>
-	{#if !isAuthRoute}
+	{#if !isAuthRoute && page.data.user}
 		<AppSidebar />
 	{/if}
 	<Sidebar.Inset class="sidebar-container">
-		{#if !isAuthRoute}
+		{#if !isAuthRoute && page.data.user}
 			<header
 				class="group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 flex h-12 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear"
 			>

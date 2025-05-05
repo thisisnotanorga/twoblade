@@ -311,10 +311,14 @@
 							<Button type="submit" class="w-full" disabled={isSubmitting || !testCompleted}>
 								{isSubmitting ? 'Creating Account...' : 'Create Account'}
 							</Button>
-
+							<div class="text-center text-xs">
+								By signing up, you agree to our{' '}
+								<a href="/legal/privacy" class="text-primary hover:underline">Privacy Policy</a> and{' '}
+								<a href="/legal/terms" class="text-primary hover:underline">Terms of Service</a>.
+							</div>
 							<div class="mt-2 text-center text-sm">
 								Already have an account?
-								<a href="/login" class="underline"> Log in </a>
+								<a href="/login" class="text-primary hover:underline"> Log in </a>
 							</div>
 						</div>
 					</form>
@@ -402,10 +406,10 @@
 										{#each currentQuestion.options as option, i}
 											<Button
 												variant="outline"
-												class="w-full select-none justify-start text-left"
+												class="h-auto min-h-[2.5rem] w-full select-none justify-start whitespace-normal py-2 text-left"
 												onclick={() => handleAnswer(i)}
 											>
-												{@html scrambleText(option)}
+												{option}
 											</Button>
 										{/each}
 									</div>
