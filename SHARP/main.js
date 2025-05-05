@@ -163,6 +163,22 @@ async function handleSharpMessage(socket, raw, state) {
 
             case 'RECEIVING_DATA':
                 if (cmd.type === 'EMAIL_CONTENT') {
+                    if (cmd.content_type === 'text/plain' && cmd.body) {
+                        const from = parseSharpAddress(state.from);
+                        try {
+                            const users = await sql`SELECT iq FROM users WHERE username = ${from.username}`;
+                            const userIQ = users[0]?.iq;
+                            const { isValid, limit } = checkVocabulary(cmd.body, userIQ);
+                            if (!isValid) {
+                                sendError(socket, `Message contains words longer than the allowed ${limit} characters for your IQ level (${userIQ}). Please simplify.`);
+                                return;
+                            }
+                        } catch (dbError) {
+                            console.error("Error checking vocabulary:", dbError);
+                            // Continue without vocabulary check if DB error
+                        }
+                    }
+
                     state.subject = cmd.subject;
                     state.body = cmd.body;
                     state.content_type = cmd.content_type || 'text/plain';
@@ -493,11 +509,44 @@ function calculateSpamScore(header, resource) {
     }
 }
 
+function checkVocabulary(text, iq) {
+    let maxWordLength;
+
+    if (iq < 90) maxWordLength = 3;
+    else if (iq < 100) maxWordLength = 4;
+    else if (iq < 120) maxWordLength = 5;
+    else if (iq < 130) maxWordLength = 6;
+    else if (iq < 140) maxWordLength = 7;
+    else return { isValid: true, limit: null };
+
+    const words = text.split(/\s+/);
+    for (const word of words) {
+        const cleanedWord = word.replace(/[.,!?;:"']/g, '');
+        if (cleanedWord.length > maxWordLength) {
+            return { isValid: false, limit: maxWordLength };
+        }
+    }
+    return { isValid: true, limit: maxWordLength };
+}
+
 app.post('/api/send', validateAuthToken, async (req, res) => {
     let logEntry;
     let id;
     try {
         const { hashcash, ...emailData } = req.body;
+        
+        if (emailData.content_type === 'text/plain' && emailData.body) {
+            const users = await sql`SELECT iq FROM users WHERE username = ${req.user.username}`;
+            const userIQ = users[0]?.iq;
+            const { isValid, limit } = checkVocabulary(emailData.body, userIQ);
+            if (!isValid) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Message contains words longer than the allowed ${limit} characters for your IQ level (${userIQ}). Please simplify.`
+                });
+            }
+        }
+
         const spamScore = calculateSpamScore(hashcash, emailData.to);
 
         if (!hashcash || spamScore >= 3) {

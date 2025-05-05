@@ -95,6 +95,8 @@ export function debounce<T extends (...args: any[]) => any>(fn: T, delay: number
     };
 }
 
+// THIS IS LINKED TO ../../SHARP/main.js
+// In order to make SHARP be usable without the website src, we use the same function there without importing it
 export function checkVocabulary(text: string, iq: number): { isValid: boolean; limit: number | null } {
     let maxWordLength: number;
 
