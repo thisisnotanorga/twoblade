@@ -8,6 +8,7 @@ type UserSessionData = {
 	is_banned: boolean;
 	created_at: string;
 	iq: number;
+	is_admin: boolean;
 } | null;
 
 declare global {

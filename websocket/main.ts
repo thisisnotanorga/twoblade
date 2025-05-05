@@ -19,6 +19,7 @@ interface User {
     domain: string;
     iq: number;
     is_banned: boolean;
+    is_admin?: boolean;
 }
 
 interface UserSecretCode {
@@ -41,6 +42,8 @@ const messages: Array<{
     fromIQ: number;
     timestamp: string;
 }> = [];
+
+const bannedUserIds = new Set<number>();
 
 const io = new Server({
     cors: {
@@ -69,7 +72,7 @@ io.use(async (socket, next) => {
         }
 
         const users = await sql<User[]>`
-            SELECT id, username, domain, iq, is_banned 
+            SELECT id, username, domain, iq, is_admin, is_banned
             FROM users 
             WHERE id = ${payload.userId as number}
         `;
@@ -80,10 +83,11 @@ io.use(async (socket, next) => {
         }
 
         if (user.is_banned) {
+            bannedUserIds.add(user.id);
             await sql`
-                DELETE FROM user_secret_codes 
-                WHERE code = ${payload.code as string}
-            `;
+                 DELETE FROM user_secret_codes 
+                 WHERE code = ${payload.code as string}
+             `;
             return next(new Error('User is banned'));
         }
 
@@ -109,6 +113,12 @@ io.on('connection', (socket) => {
     socket.emit('recent_messages', messages.slice(-200));
 
     socket.on('message', async (text: string) => {
+        if (bannedUserIds.has(user.id)) {
+            socket.emit('error', { message: 'You are banned from sending messages.' });
+            socket.disconnect(true);
+            return;
+        }
+
         if (!text?.trim()) return;
 
         if (checkHardcore(text)) {
@@ -152,6 +162,47 @@ io.on('connection', (socket) => {
         if (messages.length > 200) messages.shift();
 
         io.emit('message', message);
+    });
+
+    socket.on('ban_user', async (userIdentifier: string) => {
+        const adminUser = socket.data.user as User;
+        if (!adminUser.is_admin) return;
+
+        const [username, domain] = userIdentifier.split('#');
+
+        const usersToBan = await sql<{ id: number }[]>`
+            SELECT id FROM users 
+            WHERE username = ${username} AND domain = ${domain}
+        `;
+
+        if (usersToBan.length === 0) return;
+
+        const userToBanId = usersToBan[0].id;
+
+        bannedUserIds.add(userToBanId);
+
+        await sql`
+            UPDATE users 
+            SET is_banned = true 
+            WHERE id = ${userToBanId}
+        `;
+
+        await sql`
+            DELETE FROM user_secret_codes 
+            WHERE user_id = ${userToBanId}
+        `;
+
+        const filteredMessages = messages.filter(m => m.fromUser !== userIdentifier);
+        messages.length = 0;
+        messages.push(...filteredMessages);
+
+        io.emit('user_banned', userIdentifier);
+
+        for (const [id, socket] of io.sockets.sockets) {
+            if (socket.data.user?.username === username && socket.data.user?.domain === domain) {
+                socket.disconnect(true);
+            }
+        }
     });
 
     socket.on('disconnect', () => {

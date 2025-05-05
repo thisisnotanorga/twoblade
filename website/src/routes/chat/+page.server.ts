@@ -13,6 +13,7 @@ export const load: PageServerLoad = async ({ cookies, parent }) => {
     }
 
     return {
-        token
+        token,
+        isAdmin: user.is_admin || false
     };
 };

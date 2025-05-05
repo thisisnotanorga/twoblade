@@ -9,6 +9,7 @@ export interface UserSessionData {
     is_banned: boolean;
     created_at: string;
     iq: number;
+    is_admin: boolean;
 }
 
 export interface User extends UserSessionData {

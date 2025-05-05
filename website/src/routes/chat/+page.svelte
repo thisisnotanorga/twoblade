@@ -8,10 +8,11 @@
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { Textarea } from '$lib/components/ui/textarea';
 	import { Button } from '$lib/components/ui/button';
-	import { Send } from 'lucide-svelte';
+	import { Send, Hammer } from 'lucide-svelte';
 	import { activeUsers } from '$lib/stores/users';
 
 	let { data } = $props();
+	let isAdmin = $state(data.isAdmin || false);
 
 	type ChatMessage = {
 		id: string;
@@ -30,6 +31,7 @@
 	let messagesContainer: HTMLDivElement;
 	let initialScrollDone = $state(false);
 	let shakeScreen = $state(false);
+	let isBanned = $state($USER_DATA?.is_banned || false);
 
 	const debouncedCheckVocabulary = debounce(async () => {
 		const userIQ = $USER_DATA?.iq ?? 100;
@@ -83,6 +85,16 @@
 		socket.on('error', (error: { message: string }) => {
 			toast.error(error.message);
 		});
+
+		socket.on('user_banned', (bannedUserIdentifier: string) => {
+			messages = messages.filter(m => m.fromUser !== bannedUserIdentifier);
+			
+			const currentUserIdentifier = `${$USER_DATA?.username}#${$USER_DATA?.domain}`;
+			if (bannedUserIdentifier === currentUserIdentifier) {
+				isBanned = true;
+				toast.error("You have been banned from chat.");
+			}
+		});
 	}
 
 	onMount(() => {
@@ -109,6 +121,11 @@
 	const MESSAGE_COOLDOWN = 500; // ~3 messages in 2s
 
 	function handleSendMessage() {
+		if (isBanned) {
+			toast.error("You are banned from chat.");
+			return;
+		}
+
 		if (!messageInput.trim() || !isConnected || vocabularyError) return;
 
 		if (messageRateLimit.cooldown) {
@@ -152,6 +169,11 @@
 			initialScrollDone = true;
 		}
 	});
+
+	function handleBanUser(userId: string) {
+		if (!isAdmin) return;
+		socket.emit('ban_user', userId);
+	}
 </script>
 
 <div class="flex h-[calc(100vh-6rem)] w-full flex-col" class:shake={shakeScreen}>
@@ -159,7 +181,7 @@
 		<div class="flex flex-col p-4" bind:this={messagesContainer}>
 			<div bind:this={messagesDiv}>
 				{#each messages as message}
-					<div class="animate-message-appear mb-4 flex items-start gap-3">
+					<div class="animate-message-appear mb-4 flex items-start gap-3 group">
 						<div
 							class={cn(
 								'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full',
@@ -177,6 +199,17 @@
 								<span class="text-muted-foreground text-xs">
 									{formatTime(message.timestamp)}
 								</span>
+								{#if isAdmin}
+									<Button
+										variant="destructive"
+										size="sm"
+										onclick={() => handleBanUser(message.fromUser)}
+										class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"
+									>
+										<Hammer class="h-4 w-4" />
+										Ban
+									</Button>
+								{/if}
 							</div>
 							<p class="text-sm">{message.text}</p>
 						</div>
@@ -190,21 +223,22 @@
 		<div class="flex gap-2">
 			<Textarea
 				bind:value={messageInput}
-				placeholder="Write a message..."
+				placeholder={isBanned ? "You are banned" : "Write a message..."}
 				class="h-10 min-h-0 resize-none"
 				rows={1}
 				onkeydown={(e) =>
-					e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
+					!isBanned && e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
+				disabled={isBanned}
 			/>
 			<Button
 				variant="default"
 				onclick={handleSendMessage}
-				disabled={!isConnected || !!vocabularyError || messageRateLimit.cooldown}
+				disabled={isBanned || !isConnected || !!vocabularyError || messageRateLimit.cooldown}
 			>
 				<Send />
 			</Button>
 		</div>
-		{#if vocabularyError}
+		{#if vocabularyError && !isBanned}
 			<p class="text-destructive mt-2 text-xs">{vocabularyError}</p>
 		{/if}
 	</div>

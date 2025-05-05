@@ -23,6 +23,7 @@
 	import Button from '../ui/button/button.svelte';
 	import ComposeEmail from '$lib/components/self/ComposeEmail.svelte';
 	import StorageUsageBar from './StorageUsageBar.svelte';
+	import { USER_DATA } from '$lib/stores/user';
 
 	const data = {
 		navMain: [
@@ -55,7 +56,12 @@
 	<Sidebar.Header>
 		<div class="flex items-center gap-1 px-2 py-2">
 			<img src="/logo.svg" class="h-5 w-5" alt="twoblade" />
-			<span class="text-base font-semibold">Twoblade</span>
+			<div class="flex items-center gap-2">
+				<span class="text-base font-semibold">Twoblade</span>
+				{#if $USER_DATA?.is_admin}
+					<span class="text-muted-foreground text-xs">| Admin</span>
+				{/if}
+			</div>
 		</div>
 	</Sidebar.Header>
 
