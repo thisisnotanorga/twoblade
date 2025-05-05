@@ -37,7 +37,10 @@ export const actions: Actions = {
                  return fail(403, { success: false, error: 'Your account is banned.', username });
             }
 
-            // Verify password
+            if (user.password_hash === 'DELETED_ACCOUNT') {
+                return fail(400, { success: false, error: 'Invalid username or password.', username });
+            }
+
             const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
             if (!passwordMatch) {

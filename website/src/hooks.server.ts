@@ -11,14 +11,14 @@ export const handle: Handle = async ({ event, resolve }) => {
         if (payload) {
             try {
                 const users = await sql`
-                    SELECT id, username, domain, is_banned, created_at, iq
+                    SELECT id, username, domain, is_banned, created_at, iq, deleted_at
                     FROM users
                     WHERE id = ${payload.userId} AND is_banned = FALSE
                 `;
 
                 const rawUser = users[0];
 
-                if (rawUser) {
+                if (rawUser && !rawUser.deleted_at) {
                     event.locals.user = {
                         id: rawUser.id as number,
                         username: rawUser.username as string,
