@@ -87,12 +87,12 @@
 		});
 
 		socket.on('user_banned', (bannedUserIdentifier: string) => {
-			messages = messages.filter(m => m.fromUser !== bannedUserIdentifier);
-			
+			messages = messages.filter((m) => m.fromUser !== bannedUserIdentifier);
+
 			const currentUserIdentifier = `${$USER_DATA?.username}#${$USER_DATA?.domain}`;
 			if (bannedUserIdentifier === currentUserIdentifier) {
 				isBanned = true;
-				toast.error("You have been banned from chat.");
+				toast.error('You have been banned from chat.');
 			}
 		});
 	}
@@ -122,7 +122,7 @@
 
 	function handleSendMessage() {
 		if (isBanned) {
-			toast.error("You are banned from chat.");
+			toast.error('You are banned from chat.');
 			return;
 		}
 
@@ -181,7 +181,9 @@
 		<div class="flex flex-col p-4" bind:this={messagesContainer}>
 			<div bind:this={messagesDiv}>
 				{#each messages as message}
-					<div class="animate-message-appear mb-4 flex items-start gap-3 group">
+					<div
+						class="animate-message-appear hover:bg-muted/50 group mb-2 flex items-start gap-3 rounded-lg p-2 transition-colors"
+					>
 						<div
 							class={cn(
 								'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full',
@@ -190,28 +192,30 @@
 						>
 							<span class="text-xs font-medium">{getInitials(message.fromUser.split('#')[0])}</span>
 						</div>
-						<div class="min-w-0 flex-1">
-							<div class="flex items-center gap-2">
-								<span class="text-sm font-medium">{message.fromUser}</span>
-								<span class="bg-primary/10 text-primary rounded px-2 py-0.5 text-xs">
-									{message.fromIQ} IQ
-								</span>
-								<span class="text-muted-foreground text-xs">
-									{formatTime(message.timestamp)}
-								</span>
-								{#if isAdmin}
-									<Button
-										variant="destructive"
-										size="sm"
-										onclick={() => handleBanUser(message.fromUser)}
-										class="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"
-									>
-										<Hammer class="h-4 w-4" />
-										Ban
-									</Button>
-								{/if}
+						<div class="flex min-w-0 flex-1">
+							<div class="flex-1">
+								<div class="flex items-center gap-2">
+									<span class="text-sm font-medium">{message.fromUser}</span>
+									<span class="bg-primary/10 text-primary rounded px-2 py-0.5 text-xs">
+										{message.fromIQ} IQ
+									</span>
+									<span class="text-muted-foreground text-xs">
+										{formatTime(message.timestamp)}
+									</span>
+								</div>
+								<p class="text-sm">{message.text}</p>
 							</div>
-							<p class="text-sm">{message.text}</p>
+							{#if isAdmin && !message.fromUser.includes($USER_DATA?.username ?? '')}
+								<Button
+									variant="destructive"
+									size="sm"
+									onclick={() => handleBanUser(message.fromUser)}
+									class="flex items-center gap-1.5 self-center opacity-0 transition-opacity group-hover:opacity-100"
+								>
+									<Hammer class="h-4 w-4" />
+									<span>Ban</span>
+								</Button>
+							{/if}
 						</div>
 					</div>
 				{/each}
@@ -223,11 +227,14 @@
 		<div class="flex gap-2">
 			<Textarea
 				bind:value={messageInput}
-				placeholder={isBanned ? "You are banned" : "Write a message..."}
+				placeholder={isBanned ? 'You are banned' : 'Write a message...'}
 				class="h-10 min-h-0 resize-none"
 				rows={1}
 				onkeydown={(e) =>
-					!isBanned && e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSendMessage())}
+					!isBanned &&
+					e.key === 'Enter' &&
+					!e.shiftKey &&
+					(e.preventDefault(), handleSendMessage())}
 				disabled={isBanned}
 			/>
 			<Button

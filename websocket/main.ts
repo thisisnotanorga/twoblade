@@ -89,6 +89,11 @@ io.use(async (socket, next) => {
                  WHERE code = ${payload.code as string}
              `;
             return next(new Error('User is banned'));
+        } else {
+            if (bannedUserIds.has(user.id)) {
+                console.log(`User ${user.id} is no longer banned, removing from bannedUserIds set.`);
+                bannedUserIds.delete(user.id);
+            }
         }
 
         socket.data.user = user;
@@ -167,6 +172,12 @@ io.on('connection', (socket) => {
     socket.on('ban_user', async (userIdentifier: string) => {
         const adminUser = socket.data.user as User;
         if (!adminUser.is_admin) return;
+
+        const adminIdentifier = `${adminUser.username}#${adminUser.domain}`;
+        if (userIdentifier === adminIdentifier) {
+            socket.emit('error', { message: 'You cannot ban yourself.' });
+            return;
+        }
 
         const [username, domain] = userIdentifier.split('#');
 

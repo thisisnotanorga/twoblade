@@ -15,7 +15,8 @@
 		ArrowUp,
 		PenSquare,
 		Settings,
-		MessageCircle
+		MessageCircle,
+		ShieldAlert
 	} from 'lucide-svelte';
 	import { mode, setMode } from 'mode-watcher';
 	import type { HTMLAttributes } from 'svelte/elements';
@@ -39,7 +40,8 @@
 			{ title: 'Scheduled', url: '/scheduled', icon: ClockFading },
 			{ title: 'Spam', url: '/spam', icon: CircleAlert },
 			{ title: 'Settings', url: '/settings', icon: Settings }
-		]
+		],
+		navAdmin: [{ title: 'Admin', url: '/admin', icon: ShieldAlert }]
 	};
 	let isExpanded = $state(false);
 	let showCompose = $state(false);
@@ -136,6 +138,25 @@
 								</Sidebar.MenuButton>
 							</Sidebar.MenuItem>
 						{/each}
+
+						{#if $USER_DATA?.is_admin}
+							{#each data.navAdmin as item}
+								<Sidebar.MenuItem>
+									<Sidebar.MenuButton>
+										{#snippet child({ props }: { props: MenuButtonProps })}
+											<a
+												href={item.url}
+												onclick={() => handleNavClick(item.title)}
+												class={`${$currentTab === item.title ? 'bg-accent text-accent-foreground' : ''} ${props.class}`}
+											>
+												<item.icon />
+												<span>{item.title}</span>
+											</a>
+										{/snippet}
+									</Sidebar.MenuButton>
+								</Sidebar.MenuItem>
+							{/each}
+						{/if}
 
 						<Sidebar.MenuItem>
 							<StorageUsageBar />

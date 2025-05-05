@@ -203,6 +203,7 @@
 		else if (route === '/scheduled') $currentTab = 'Scheduled';
 		else if (route === '/spam') $currentTab = 'Spam';
 		else if (route === '/settings') $currentTab = 'Settings';
+		else if (route === '/admin') $currentTab = 'Admin';
 		else $currentTab = 'Inbox';
 	});
 </script>
