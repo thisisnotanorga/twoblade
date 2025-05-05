@@ -1,6 +1,7 @@
-import { sql } from "$lib/server/db";
-import { deleteCode, verifyAuthJWT } from "$lib/server/jwt";
-import type { Handle } from "@sveltejs/kit";
+import type { Handle } from '@sveltejs/kit';
+import { deleteCode, verifyAuthJWT } from '$lib/server/jwt';
+import { sql } from '$lib/server/db';
+import { PUBLIC_DOMAIN } from '$env/static/public';
 
 export const handle: Handle = async ({ event, resolve }) => {
     const token = event.cookies.get('auth_token');
@@ -11,29 +12,28 @@ export const handle: Handle = async ({ event, resolve }) => {
         if (payload) {
             try {
                 const users = await sql`
-                    SELECT id, username, domain, is_banned, created_at, iq, deleted_at, is_admin
-                    FROM users
-                    WHERE id = ${payload.userId} AND is_banned = FALSE
+                    SELECT id, username, domain, is_banned, created_at, iq, is_admin 
+                    FROM users 
+                    WHERE id = ${payload.userId} AND deleted_at IS NULL
                 `;
+                const dbUser = users[0];
 
-                const rawUser = users[0];
-
-                if (rawUser && !rawUser.deleted_at) {
+                if (dbUser) {
                     event.locals.user = {
-                        id: rawUser.id as number,
-                        username: rawUser.username as string,
-                        domain: rawUser.domain as string,
-                        is_banned: rawUser.is_banned as boolean,
-                        created_at: rawUser.created_at instanceof Date ? rawUser.created_at.toISOString() : String(rawUser.created_at),
-                        iq: rawUser.iq,
-                        is_admin: rawUser.is_admin,
+                        id: dbUser.id,
+                        username: dbUser.username,
+                        domain: dbUser.domain || PUBLIC_DOMAIN,
+                        is_banned: dbUser.is_banned,
+                        created_at: dbUser.created_at.toISOString(),
+                        iq: dbUser.iq,
+                        is_admin: dbUser.is_admin,
+                        code: payload.code
                     };
                 } else {
                     await deleteCode(payload.code);
                     event.cookies.delete('auth_token', { path: '/' });
                 }
             } catch (error) {
-                console.error("Error fetching user:", error);
                 event.cookies.delete('auth_token', { path: '/' });
             }
         } else {
