@@ -28,6 +28,9 @@
 	import { page } from '$app/state';
 	import type { Email } from '$lib/types/email';
 	import { activeUsers } from '$lib/stores/users';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+	import { ChevronDown } from 'lucide-svelte';
+	import { Button } from '$lib/components/ui/button';
 
 	log.setLevel(dev ? log.levels.DEBUG : log.levels.WARN);
 
@@ -222,7 +225,6 @@
 			>
 				<div class="flex w-full items-center gap-4 px-4 lg:px-6">
 					<Sidebar.Trigger class="-ml-1" />
-					<Separator orientation="vertical" class="mx-2 data-[orientation=vertical]:h-4" />
 
 					<h1 class="mr-6 text-base font-medium">{$currentTab}</h1>
 
@@ -237,7 +239,20 @@
 							/>
 						</div>
 
-						<EmailClassificationButtons />
+						<div class="hidden md:block">
+							<EmailClassificationButtons />
+						</div>
+
+						<div class="md:hidden">
+							<DropdownMenu.Root>
+								<DropdownMenu.Trigger>
+									<ChevronDown class="h-4 w-4" />
+								</DropdownMenu.Trigger>
+								<DropdownMenu.Content align="end">
+									<EmailClassificationButtons />
+								</DropdownMenu.Content>
+							</DropdownMenu.Root>
+						</div>
 					{/if}
 
 					{#if isChatRoute}

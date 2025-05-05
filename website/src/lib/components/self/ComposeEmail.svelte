@@ -444,20 +444,29 @@
 				</div>
 			</div>
 
-			<Dialog.Footer class="flex items-center justify-end">
-				<button type="button" class="mr-auto text-sm underline" onclick={() => (isOpen = false)}>
+			<Dialog.Footer class="flex flex-col-reverse gap-4 sm:flex-row sm:items-center sm:justify-end">
+				<button 
+					type="button" 
+					class="text-muted-foreground hover:text-foreground w-full text-center text-sm underline transition-colors sm:w-auto sm:text-left" 
+					onclick={() => (isOpen = false)}
+				>
 					Cancel
 				</button>
-				<DateTimePicker date={scheduledDate} onChange={(date) => (scheduledDate = date)} />
-				<Button type="submit">
-					{#if scheduledDate}
-						<Clock class="h-4 w-4" />
-						Schedule
-					{:else}
-						<Send class="h-4 w-4" />
-						Send
-					{/if}
-				</Button>
+				<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+					<DateTimePicker 
+						date={scheduledDate} 
+						onChange={(date) => (scheduledDate = date)} 
+					/>
+					<Button type="submit" class="w-full sm:w-auto">
+						{#if scheduledDate}
+							<Clock class="h-4 w-4" />
+							Schedule
+						{:else}
+							<Send class="h-4 w-4" />
+							Send
+						{/if}
+					</Button>
+				</div>
 			</Dialog.Footer>
 
 			{#if isStatusVisible}

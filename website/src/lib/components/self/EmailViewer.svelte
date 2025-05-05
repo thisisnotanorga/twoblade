@@ -33,6 +33,7 @@
 	import log from '$lib/logger';
 	import { debounce, checkVocabulary } from '$lib/utils';
 	import { proxyUrl } from '$lib/utils/proxyUrl';
+	import { formatThreadDate } from '$lib/utils/format-date';
 
 	function isImageAttachment(type: string): boolean {
 		return IMAGE_TYPES.includes(type as ImageType);
@@ -83,7 +84,7 @@
 		if (!email) return '';
 		if (email.content_type === 'text/html' && email.html_body) {
 			const processedHtml = processThemeStyles(email.html_body, currentMode);
-			
+
 			DOMPurify.addHook('afterSanitizeAttributes', (node) => {
 				if (node.tagName === 'IMG') {
 					const originalSrc = node.getAttribute('src');
@@ -92,11 +93,11 @@
 					}
 				}
 			});
-			
+
 			const sanitized = DOMPurify.sanitize(processedHtml, sanitizeConfig);
-			
+
 			DOMPurify.removeHook('afterSanitizeAttributes');
-			
+
 			return sanitized;
 		}
 		return email.body || '';
@@ -430,18 +431,6 @@
 		replyText = '';
 	});
 
-	function formatDate(date: string | null) {
-		if (!date) return '';
-		return new Date(date).toLocaleString([], {
-			weekday: 'long',
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
-
 	function handleFilesChange(
 		files: Array<{ id: string; filename: string; size: number; type: string }>
 	) {
@@ -501,19 +490,19 @@
 </script>
 
 {#if email}
-	<div class="flex h-full flex-col">
+	<div class="flex h-full flex-col md:relative">
 		<!-- Original header -->
-		<div class="border-b p-4">
+		<div class="border-b p-2 md:p-4">
 			<Button variant="ghost" size="icon" class="float-right" onclick={onClose}>
 				<X class="h-4 w-4" />
 			</Button>
-			<h2 class="text-xl font-semibold">{email.subject || 'No subject'}</h2>
+			<h2 class="line-clamp-1 text-lg font-semibold md:text-xl">{email.subject || 'No subject'}</h2>
 		</div>
 
 		<!-- THREAD LIST -->
 		<div class="flex-1 divide-y overflow-auto">
 			{#each threadEmails as threadEmail (threadEmail.id)}
-				<div class="p-4">
+				<div class="p-2 md:p-4">
 					<button
 						type="button"
 						class="flex cursor-pointer items-center gap-2"
@@ -547,14 +536,14 @@
 									</span>
 								{/if}
 								<span class="text-muted-foreground text-sm">
-									{formatDate(threadEmail.sent_at)}
+									{formatThreadDate(threadEmail.sent_at)}
 								</span>
 							</div>
 						</div>
 					</button>
 
 					{#if expandedEmails.has(threadEmail.id)}
-						<div class="mt-4 pl-6">
+						<div class="mt-2 pl-2 md:mt-4 md:pl-6">
 							{#if threadEmail.content_type === 'text/html'}
 								{@html getSanitizedContent(threadEmail, mode.current ?? 'light')}
 							{:else}
@@ -562,11 +551,13 @@
 							{/if}
 
 							{#if threadEmail.attachments?.length}
-								<div class="mt-4 space-y-3">
+								<div class="mt-2 space-y-2 md:mt-4 md:space-y-3">
 									{#if threadEmail.attachments.some((a) => isImageAttachment(a.type))}
-										<div class="grid grid-cols-[repeat(auto-fill,160px)] gap-3">
+										<div
+											class="grid grid-cols-[repeat(auto-fill,120px)] gap-2 md:grid-cols-[repeat(auto-fill,160px)] md:gap-3"
+										>
 											{#each threadEmail.attachments.filter( (a) => isImageAttachment(a.type) ) as attachment}
-												<div class="relative aspect-square h-[160px]">
+												<div class="relative aspect-square h-[120px] md:h-[160px]">
 													<ImagePreview
 														url={`/api/attachment?key=${attachment.key}`}
 														filename={attachment.filename}
@@ -604,16 +595,16 @@
 		</div>
 
 		<!-- REPLY BOX AT BOTTOM -->
-		<div class="border-t p-4">
+		<div class="border-t p-2 md:p-4">
 			{#if isReplying}
-				<div class="flex flex-col gap-4">
+				<div class="flex flex-col gap-2 md:gap-4">
 					<div
-						class=" border-input/50 focus-within:border-primary flex flex-col rounded-lg border-2"
+						class="border-input/50 focus-within:border-primary flex flex-col rounded-lg border-2"
 					>
 						<textarea
 							bind:value={replyText}
 							id="reply-textarea"
-							class="bg-background placeholder:text-muted-foreground min-h-[120px] w-full resize-none rounded-t-lg px-3.5 py-3 text-base focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+							class="bg-background placeholder:text-muted-foreground min-h-[100px] w-full resize-none rounded-t-lg px-2 py-2 text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 md:min-h-[120px] md:px-3.5 md:py-3 md:text-base"
 							placeholder="Write your reply..."
 							disabled={isSending}
 						></textarea>
@@ -699,7 +690,7 @@
 		</div>
 	</div>
 {:else}
-	<div class="text-muted-foreground flex h-full items-center justify-center">
+	<div class="text-muted-foreground flex h-full items-center justify-center p-4 text-center">
 		Select an email to view its contents
 	</div>
 {/if}

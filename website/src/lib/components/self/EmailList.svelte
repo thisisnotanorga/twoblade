@@ -23,6 +23,7 @@
 	import { USER_DATA } from '$lib/stores/user';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { classificationColors } from '$lib/utils/classification-colors';
+	import { formatEmailDate } from '$lib/utils/format-date';
 
 	let props = $props<{
 		emails: Email[];
@@ -45,15 +46,6 @@
 	let isReceiver = $derived(
 		(email: Email) => email.to_address === $USER_DATA?.username + '#' + $USER_DATA?.domain
 	);
-
-	function formatDate(date: string) {
-		return new Date(date).toLocaleString([], {
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
 
 	function formatScheduledDate(date: string) {
 		const scheduledDate = new Date(date);
@@ -191,9 +183,7 @@
 
 <div class="h-[calc(100vh-6rem)] w-full">
 	{#if selectedEmails.size > 0}
-		<div
-			class="bg-background/95 supports-[backdrop-filter]:bg-background/60 flex items-center gap-2 border-b p-2 backdrop-blur"
-		>
+		<div class="bg-background/95 supports-[backdrop-filter]:bg-background/60 flex items-center gap-2 border-b p-2 backdrop-blur">
 			<span class="text-muted-foreground text-sm">
 				{selectedEmails.size} selected
 			</span>
@@ -204,10 +194,10 @@
 			{/if}
 		</div>
 	{/if}
-	<Resizable.PaneGroup direction="horizontal">
-		<Resizable.Pane minSize={25} maxSize={80}>
+	<Resizable.PaneGroup direction="horizontal" class="relative">
+		<Resizable.Pane minSize={25} maxSize={80} class="md:relative absolute inset-0 z-10 md:z-0 {selectedEmail ? 'hidden md:block' : 'block'}">
 			<ScrollArea class="h-full w-full">
-				<div class="flex flex-col gap-1 px-4 py-4 md:px-6">
+				<div class="flex flex-col gap-1 px-2 py-2 md:px-6 md:py-4">
 					{#if emails.length === 0}
 						<div class="text-muted-foreground flex h-32 items-center justify-center">
 							<p>No emails</p>
@@ -216,7 +206,7 @@
 						{#each emails as email (email.id)}
 							<button
 								type="button"
-								class={`hover:bg-accent hover:text-accent-foreground flex flex-col items-start gap-2 rounded-lg p-3 text-left text-sm transition-colors ${
+								class={`hover:bg-accent hover:text-accent-foreground flex flex-col items-start gap-1 md:gap-2 rounded-lg p-2 md:p-3 text-left text-xs md:text-sm transition-colors ${
 									selectedEmails.has(email.id) ? 'bg-accent text-accent-foreground' : ''
 								} ${selectedEmail?.id === email.id ? 'bg-accent text-accent-foreground' : ''}`}
 								aria-label={`Email from ${email.from_address} with subject ${email.subject}`}
@@ -280,18 +270,75 @@
 											{/if}
 										</span>
 									</div>
-									<div class="ml-3 flex min-w-0 flex-1 items-center">
-										<div class="flex items-center space-x-2">
-											<span
-												class="max-w-[200px] truncate font-medium {isReceiver(email) &&
-												!email.read_at
-													? 'font-bold'
-													: ''}"
-											>
-												{showRecipient ? email.to_address : email.from_address}
-											</span>
+									<div class="ml-2 md:ml-3 flex min-w-0 flex-1 items-center">
+										<!-- Mobile Layout -->
+										<div class="md:hidden flex flex-col w-full">
+											<div class="flex items-center justify-between gap-2">
+												<span class="flex-1 truncate {isReceiver(email) && !email.read_at ? 'font-bold' : ''}">
+													{email.subject}
+												</span>
+												<div class="flex items-center gap-1">
+													<div class="inline-flex gap-1">
+														<Tooltip.Root>
+															<Tooltip.Trigger
+																class="flex h-6 w-6 items-center justify-center rounded-full transition-colors 
+																{classificationColors[email.classification as Classification].bg}/10
+																{classificationColors[email.classification as Classification].text}
+																{classificationColors[email.classification as Classification].bgStrong}"
+															>
+																{@const Icon =
+																	classificationIcons[email.classification as Classification]}
+																<Icon class="h-3.5 w-3.5" />
+															</Tooltip.Trigger>
+															<Tooltip.Content>
+																<p class="capitalize">{email.classification}</p>
+															</Tooltip.Content>
+														</Tooltip.Root>
 
-											<div class="inline-flex gap-2">
+														{#if email.self_destruct}
+															<Tooltip.Root>
+																<Tooltip.Trigger
+																	class="text-destructive bg-destructive/10 hover:bg-destructive/20 flex h-6 w-6 items-center justify-center
+																	rounded-full transition-colors"
+																>
+																	<Bomb class="h-3.5 w-3.5" />
+																</Tooltip.Trigger>
+																<Tooltip.Content>
+																	<p>Self-destructing email (deletes after reading)</p>
+																</Tooltip.Content>
+															</Tooltip.Root>
+														{/if}
+
+														{#if email.expires_at}
+															<Tooltip.Root>
+																<Tooltip.Trigger
+																	class="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/10
+																	text-amber-500 transition-colors hover:bg-amber-500/20"
+																>
+																	<Clock class="h-3.5 w-3.5" />
+																</Tooltip.Trigger>
+																<Tooltip.Content>
+																	<p>Expires in {formatExpiration(email.expires_at)}</p>
+																</Tooltip.Content>
+															</Tooltip.Root>
+														{/if}
+													</div>
+													<span class="flex-shrink-0 whitespace-nowrap text-xs/snug">
+														{formatEmailDate(email.sent_at)}
+													</span>
+												</div>
+											</div>
+											<span class="text-muted-foreground block truncate text-xs">{email.body}</span>
+										</div>
+
+										<!-- Desktop Layout -->
+										<div class="hidden md:flex min-w-0 flex-1 items-center">
+											<div class="flex items-center gap-2">
+												<span class="max-w-[200px] truncate font-medium {isReceiver(email) && !email.read_at ? 'font-bold' : ''}">
+													{showRecipient ? email.to_address : email.from_address}
+												</span>
+
+												<!-- Classification icon moved here for desktop -->
 												<Tooltip.Root>
 													<Tooltip.Trigger
 														class="flex h-6 w-6 items-center justify-center rounded-full transition-colors 
@@ -299,53 +346,55 @@
 														{classificationColors[email.classification as Classification].text}
 														{classificationColors[email.classification as Classification].bgStrong}"
 													>
-														{@const Icon =
-															classificationIcons[email.classification as Classification]}
+														{@const Icon = classificationIcons[email.classification as Classification]}
 														<Icon class="h-3.5 w-3.5" />
 													</Tooltip.Trigger>
 													<Tooltip.Content>
 														<p class="capitalize">{email.classification}</p>
 													</Tooltip.Content>
 												</Tooltip.Root>
+											</div>
 
-												{#if email.self_destruct}
-													<Tooltip.Root>
-														<Tooltip.Trigger
-															class="text-destructive bg-destructive/10 hover:bg-destructive/20 flex h-6 w-6 items-center justify-center
-															rounded-full transition-colors"
-														>
-															<Bomb class="h-3.5 w-3.5" />
-														</Tooltip.Trigger>
-														<Tooltip.Content>
-															<p>Self-destructing email (deletes after reading)</p>
-														</Tooltip.Content>
-													</Tooltip.Root>
-												{/if}
+											<div class="ml-2 flex-1 truncate">
+												<span class={isReceiver(email) && !email.read_at ? 'font-bold' : ''}>{email.subject}</span>
+												<span class="text-muted-foreground">- {email.body}</span>
+											</div>
 
-												{#if email.expires_at}
-													<Tooltip.Root>
-														<Tooltip.Trigger
-															class="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/10
-															text-amber-500 transition-colors hover:bg-amber-500/20"
-														>
-															<Clock class="h-3.5 w-3.5" />
-														</Tooltip.Trigger>
-														<Tooltip.Content>
-															<p>Expires in {formatExpiration(email.expires_at)}</p>
-														</Tooltip.Content>
-													</Tooltip.Root>
-												{/if}
+											<div class="flex items-center gap-2 ml-2">
+												<div class="inline-flex gap-2">
+													{#if email.self_destruct}
+														<Tooltip.Root>
+															<Tooltip.Trigger
+																class="text-destructive bg-destructive/10 hover:bg-destructive/20 flex h-6 w-6 items-center justify-center
+																rounded-full transition-colors"
+															>
+																<Bomb class="h-3.5 w-3.5" />
+															</Tooltip.Trigger>
+															<Tooltip.Content>
+																<p>Self-destructing email (deletes after reading)</p>
+															</Tooltip.Content>
+														</Tooltip.Root>
+													{/if}
+
+													{#if email.expires_at}
+														<Tooltip.Root>
+															<Tooltip.Trigger
+																class="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500/10
+																text-amber-500 transition-colors hover:bg-amber-500/20"
+															>
+																<Clock class="h-3.5 w-3.5" />
+															</Tooltip.Trigger>
+															<Tooltip.Content>
+																<p>Expires in {formatExpiration(email.expires_at)}</p>
+															</Tooltip.Content>
+														</Tooltip.Root>
+													{/if}
+												</div>
+												<span class="flex-shrink-0 whitespace-nowrap text-xs/snug">
+													{formatEmailDate(email.sent_at)}
+												</span>
 											</div>
 										</div>
-										<div class="ml-2 flex-1 truncate">
-											<span class={isReceiver(email) && !email.read_at ? 'font-bold' : ''}
-												>{email.subject}</span
-											>
-											<span class="text-muted-foreground">- {email.body}</span>
-										</div>
-										<span class="flex-shrink-0 whitespace-nowrap text-xs/snug">
-											{formatDate(email.sent_at)}
-										</span>
 									</div>
 								</div>
 								{#if email.snooze_until && new Date(email.snooze_until) > new Date()}
@@ -392,7 +441,7 @@
 								{/if}
 							</button>
 							{#if email.id !== emails[emails.length - 1].id}
-								<div class="bg-border/50 mx-4 h-px"></div>
+								<div class="bg-border/50 mx-2 md:mx-4 h-px"></div>
 							{/if}
 						{/each}
 					{/if}
@@ -401,9 +450,9 @@
 		</Resizable.Pane>
 
 		{#if selectedEmail}
-			<Resizable.Handle withHandle />
-			<Resizable.Pane>
-				<div class="h-full border-l">
+			<Resizable.Handle withHandle class="hidden md:flex" />
+			<Resizable.Pane class="md:relative fixed inset-0 z-20 md:z-0 bg-background">
+				<div class="h-full md:border-l">
 					<EmailViewer email={selectedEmail} onClose={() => (selectedEmail = null)} />
 				</div>
 			</Resizable.Pane>

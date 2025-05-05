@@ -15,9 +15,8 @@
 	let currentTab = $derived(classificationStore.currentTab);
 </script>
 
-<div class="flex items-center gap-4">
-	<div class="bg-border ml-2 h-4 w-[1px]"></div>
-	<div class="flex gap-2">
+<div class="flex md:flex-row flex-col gap-2">
+	<div class="md:flex-row flex-col md:p-0 p-2">
 		{#each classifications as { value, label, icon: Icon }}
 			<Tooltip.Root>
 				<Tooltip.Trigger>
@@ -39,3 +38,10 @@
 		{/each}
 	</div>
 </div>
+
+<style>
+	:global(.dropdown-content .classification-buttons) {
+		flex-direction: column;
+		padding: 0.5rem;
+	}
+</style>

@@ -25,6 +25,7 @@
 	import ComposeEmail from '$lib/components/self/ComposeEmail.svelte';
 	import StorageUsageBar from './StorageUsageBar.svelte';
 	import { USER_DATA } from '$lib/stores/user';
+	import { useSidebar } from '$lib/components/ui/sidebar/index.js'; // Import the hook
 
 	const data = {
 		navMain: [
@@ -47,8 +48,22 @@
 	let showCompose = $state(false);
 	type MenuButtonProps = HTMLAttributes<HTMLAnchorElement | HTMLButtonElement>;
 
+	const { setOpenMobile } = useSidebar();
+
 	function handleNavClick(title: string) {
 		$currentTab = title;
+
+		setOpenMobile(false);
+	}
+
+	function handleComposeClick() {
+		showCompose = true;
+		setOpenMobile(false);
+	}
+
+	function handleModeToggle() {
+		setMode(mode.current === 'light' ? 'dark' : 'light');
+		setOpenMobile(false);
 	}
 </script>
 
@@ -74,7 +89,7 @@
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton>
 							{#snippet child()}
-								<Button onclick={() => (showCompose = true)} class={`mb-4 h-[3.0rem] w-36`}>
+								<Button onclick={handleComposeClick} class={`mb-4 h-[3.0rem] w-36`}>
 									<PenSquare />
 									<span>Compose</span>
 								</Button>
@@ -165,10 +180,7 @@
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton>
 							{#snippet child({ props }: { props: MenuButtonProps })}
-								<button
-									onclick={() => setMode(mode.current === 'light' ? 'dark' : 'light')}
-									{...props}
-								>
+								<button onclick={handleModeToggle} {...props}>
 									{#if mode.current === 'light'}
 										<Moon class="h-5 w-5" />
 										<span>Dark Mode</span>

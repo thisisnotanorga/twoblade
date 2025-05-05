@@ -173,10 +173,10 @@
 	});
 </script>
 
-<div class="container max-w-5xl">
-	<h1 class="mb-8 text-3xl font-bold">Settings</h1>
+<div class="container max-w-5xl h-[calc(100vh-4rem)] flex flex-col overflow-hidden">
+	<h1 class="mb-8 text-3xl font-bold shrink-0">Settings</h1>
 
-	<div class="space-y-6">
+	<div class="space-y-6 overflow-y-auto">
 		{#if $USER_DATA}
 			<Card.Root>
 				<Card.Header>
