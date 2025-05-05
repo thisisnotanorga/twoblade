@@ -8,11 +8,9 @@ export const load: PageServerLoad = async ({ locals }) => {
         throw redirect(303, '/login');
     }
 
-    const userEmail = `${locals.user.username}#${locals.user.domain}`;
-
     const drafts: Draft[] = await sql`
         SELECT * FROM email_drafts
-        WHERE user_email = ${userEmail}
+        WHERE user_id = ${locals.user.id}
         ORDER BY updated_at DESC
     `;
 

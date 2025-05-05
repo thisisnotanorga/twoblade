@@ -205,11 +205,11 @@
 										: 'bg-popover/30'} backdrop-blur-[1px]"
 								>
 									{#if upload.status === 'uploading'}
-										<div class="text-secondary-foreground text-xs font-medium">
+										<div class="text-primary-foreground text-xs font-medium">
 											{Math.round(upload.progress)}%
 										</div>
 									{:else if upload.status === 'error'}
-										<div class="text-secondary-foreground p-2 text-center text-xs font-medium">
+										<div class="text-primary-foreground p-2 text-center text-xs font-medium">
 											Upload Failed
 										</div>
 									{/if}
@@ -218,7 +218,7 @@
 							{#if upload.status !== 'uploading'}
 								<button
 									type="button"
-									class="bg-popover/50 text-secondary-foreground hover:bg-popover/70 absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full backdrop-blur-sm transition-colors"
+									class="bg-popover/50 text-primary-foreground hover:bg-popover/70 absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full backdrop-blur-sm transition-colors"
 									onclick={() => removeUpload(upload.id)}
 									aria-label="Remove attachment"
 								>

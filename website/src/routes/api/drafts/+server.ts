@@ -8,15 +8,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     }
 
     const draft = await request.json();
-    const userEmail = `${locals.user.username}#${locals.user.domain}`;
 
     if (!draft.body && !draft.htmlBody && !draft.subject && !draft.to) {
         return json({ error: 'Cannot save empty draft' }, { status: 400 });
     }
 
     const result = await sql`
-        INSERT INTO email_drafts (user_email, to_address, subject, body, content_type, html_body, updated_at)
-        VALUES (${userEmail}, ${draft.to}, ${draft.subject}, ${draft.body}, ${draft.contentType}, ${draft.htmlBody}, CURRENT_TIMESTAMP)
+        INSERT INTO email_drafts (user_id, to_address, subject, body, content_type, html_body, updated_at)
+        VALUES (${locals.user.id}, ${draft.to}, ${draft.subject}, ${draft.body}, ${draft.contentType}, ${draft.htmlBody}, CURRENT_TIMESTAMP)
         RETURNING id
     `;
 
@@ -29,7 +28,6 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
     }
 
     const draft = await request.json();
-    const userEmail = `${locals.user.username}#${locals.user.domain}`;
 
     if (!draft.id) {
         return json({ error: 'Draft ID is required for update' }, { status: 400 });
@@ -44,7 +42,7 @@ export const PUT: RequestHandler = async ({ request, locals }) => {
             content_type = ${draft.contentType}, 
             html_body = ${draft.htmlBody},
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${draft.id} AND user_email = ${userEmail}
+        WHERE id = ${draft.id} AND user_id = ${locals.user.id}
         RETURNING id
     `;
 
@@ -60,11 +58,9 @@ export const GET: RequestHandler = async ({ locals }) => {
         return new Response('Unauthorized', { status: 401 });
     }
 
-    const userEmail = `${locals.user.username}#${locals.user.domain}`;
-
     const drafts = await sql`
         SELECT * FROM email_drafts
-        WHERE user_email = ${userEmail}
+        WHERE user_id = ${locals.user.id}
         ORDER BY updated_at DESC
     `;
 
@@ -77,12 +73,11 @@ export const DELETE: RequestHandler = async ({ request, locals }) => {
     }
 
     const { id } = await request.json();
-    const userEmail = `${locals.user.username}#${locals.user.domain}`;
 
     await sql`
         DELETE FROM email_drafts
         WHERE id = ${id}
-        AND user_email = ${userEmail}
+        AND user_id = ${locals.user.id}
     `;
 
     return json({ success: true });

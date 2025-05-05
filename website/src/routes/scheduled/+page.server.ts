@@ -14,7 +14,7 @@ export const load: PageServerLoad = async ({ locals }) => {
         SELECT e.*, EXISTS(
             SELECT 1 FROM email_stars es 
             WHERE es.email_id = e.id 
-            AND es.user_email = ${userEmail}
+            AND es.user_id = ${locals.user.id}
         ) as starred
         FROM emails e 
         WHERE from_address = ${userEmail}

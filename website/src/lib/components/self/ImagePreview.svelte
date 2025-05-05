@@ -112,7 +112,7 @@
 			>
 				<div class="overflow-hidden rounded-xl">
 					<div class="ios-gradient pb-3 pt-24 transition-colors">
-						<div class="text-secondary-foreground space-y-1 px-3">
+						<div class="text-primary-foreground space-y-1 px-3">
 							<div class="line-clamp-1 break-all text-[13px] font-medium">
 								{filename ? getDisplayName(filename) : 'Image'}
 							</div>
@@ -139,7 +139,7 @@
 		>
 			<button
 				type="button"
-				class="bg-popover/50 text-secondary-foreground hover:bg-popover/70 flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-sm transition-colors"
+				class="bg-popover/50 text-primary-foreground hover:bg-popover/70 flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-sm transition-colors"
 				onclick={(e) => {
 					e.preventDefault();
 					e.stopPropagation();

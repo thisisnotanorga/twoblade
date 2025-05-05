@@ -7,14 +7,13 @@ export const GET: RequestHandler = async ({ locals, url }) => {
         return new Response('Unauthorized', { status: 401 });
     }
 
-    const userEmail = `${locals.user.username}#${locals.user.domain}`;
     const search = url.searchParams.get('search');
 
     const contacts = await sql`
         SELECT c.*, array_agg(ct.tag) as tags
         FROM contacts c
         LEFT JOIN contact_tags ct ON c.id = ct.contact_id
-        WHERE c.user_email = ${userEmail}
+        WHERE c.user_id = ${locals.user.id}
         ${search ? sql`AND (
             c.full_name ILIKE ${`%${search}%`} OR 
             c.email_address ILIKE ${`%${search}%`} OR 
@@ -33,12 +32,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     }
 
     const contact = await request.json();
-    const userEmail = `${locals.user.username}#${locals.user.domain}`;
 
     try {
         const result = await sql`
-            INSERT INTO contacts (user_email, full_name, email_address, tag)
-            VALUES (${userEmail}, ${contact.fullName}, ${contact.email}, ${contact.tag})
+            INSERT INTO contacts (user_id, full_name, email_address, tag)
+            VALUES (${locals.user.id}, ${contact.fullName}, ${contact.email}, ${contact.tag})
             RETURNING id
         `;
 
@@ -60,8 +58,6 @@ export const PUT: RequestHandler = async ({ request, locals, url }) => {
     const id = url.searchParams.get('id');
     if (!id) return new Response('Missing contact ID', { status: 400 });
     
-    const userEmail = `${locals.user.username}#${locals.user.domain}`;
-
     try {
         await sql`
             UPDATE contacts 
@@ -71,7 +67,7 @@ export const PUT: RequestHandler = async ({ request, locals, url }) => {
                 tag = ${contact.tag},
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ${id} 
-            AND user_email = ${userEmail}
+            AND user_id = ${locals.user.id}
         `;
 
         return json({ success: true });
@@ -89,13 +85,11 @@ export const DELETE: RequestHandler = async ({ locals, url }) => {
     const id = url.searchParams.get('id');
     if (!id) return new Response('Missing contact ID', { status: 400 });
     
-    const userEmail = `${locals.user.username}#${locals.user.domain}`;
-
     try {
         await sql`
             DELETE FROM contacts 
             WHERE id = ${id} 
-            AND user_email = ${userEmail}
+            AND user_id = ${locals.user.id}
         `;
 
         return json({ success: true });

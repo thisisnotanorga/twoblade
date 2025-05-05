@@ -43,13 +43,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     }
 
     const key = `attachments/${nanoid()}-${filename}`;
+    const userId = locals.user.id;
 
-    await sql
-        `INSERT INTO attachments (key, filename, size, type) 
-         VALUES (${key}, ${filename}, ${size}, ${type})`;
+    await sql`
+        INSERT INTO attachments (user_id, key, filename, size, type) 
+        VALUES (${userId}, ${key}, ${filename}, ${size}, ${type})`;
 
     const uploadUrl = await generatePresignedUrl(key, type);
-
     return json({ uploadUrl, key });
 };
 
@@ -59,27 +59,27 @@ export const GET: RequestHandler = async ({ locals, url }) => {
     }
 
     const key = url.searchParams.get('key');
-    const userEmail = `${locals.user.username}#${locals.user.domain}`;
-
     if (!key) {
         throw error(400, 'Missing key parameter');
     }
 
     try {
+        const userEmail = `${locals.user.username}#${locals.user.domain}`;
         const attachment = await sql`
-            SELECT a.* 
+            SELECT a.id 
             FROM attachments a
-            JOIN emails e ON a.email_id = e.id
+            LEFT JOIN emails e ON a.email_id = e.id
             WHERE a.key = ${key}
-            AND a.expires_at > NOW()
             AND (
-                e.from_address = ${userEmail} OR 
-                e.to_address = ${userEmail}
+                a.user_id = ${locals.user.id}
+                OR (
+                    e.id IS NOT NULL 
+                    AND (e.from_address = ${userEmail} OR e.to_address = ${userEmail})
+                )
             )
         `;
 
         if (!attachment?.length) {
-            console.error('Attachment not found or user not authorized:', key);
             throw error(404, 'Attachment not found or access denied');
         }
 
@@ -87,16 +87,9 @@ export const GET: RequestHandler = async ({ locals, url }) => {
         throw redirect(302, signedUrl);
 
     } catch (err) {
-        if (err && typeof err === 'object' && 'status' in err && typeof err.status === 'number') {
-            if (err.status >= 300 && err.status < 400) {
-                throw err;
-            }
-            if (err.status >= 400) {
-                throw err;
-            }
+        if (err && typeof err === 'object' && 'status' in err && typeof err.status === 'number' && err.status >= 300) {
+            throw err;
         }
-
-        console.error('Unexpected attachment fetch error:', err);
         throw error(500, 'Failed to process attachment request');
     }
 };

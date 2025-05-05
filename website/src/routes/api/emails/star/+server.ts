@@ -23,15 +23,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     if (starred) {
         await sql`
-            INSERT INTO email_stars (email_id, user_email)
-            VALUES (${emailId}, ${userEmail})
-            ON CONFLICT (email_id, user_email) DO NOTHING
+            INSERT INTO email_stars (email_id, user_id)
+            VALUES (${emailId}, ${locals.user.id})
+            ON CONFLICT (email_id, user_id) DO NOTHING
         `;
     } else {
         await sql`
             DELETE FROM email_stars
             WHERE email_id = ${emailId}
-            AND user_email = ${userEmail}
+            AND user_id = ${locals.user.id}
         `;
     }
 

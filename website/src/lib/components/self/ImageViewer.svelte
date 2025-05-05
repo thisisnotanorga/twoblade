@@ -32,7 +32,7 @@
 			<button
 				type="button"
 				onclick={() => (open = false)}
-				class="bg-popover/50 text-secondary-foreground hover:bg-popover/70 absolute right-2 top-2 z-20 rounded-full p-2 backdrop-blur-sm transition-colors"
+				class="bg-popover/50 text-primary-foreground hover:bg-popover/70 absolute right-2 top-2 z-20 rounded-full p-2 backdrop-blur-sm transition-colors"
 				aria-label="Close image viewer"
 			>
 				<X class="h-4 w-4" />
@@ -42,7 +42,7 @@
 			<button
 				type="button"
 				onclick={() => downloadFile(url, filename)}
-				class="bg-popover/50 text-secondary-foreground hover:bg-popover/70 absolute right-12 top-2 z-20 rounded-full p-2 backdrop-blur-sm transition-colors"
+				class="bg-popover/50 text-primary-foreground hover:bg-popover/70 absolute right-12 top-2 z-20 rounded-full p-2 backdrop-blur-sm transition-colors"
 				aria-label="Download image"
 			>
 				<Download class="h-4 w-4" />

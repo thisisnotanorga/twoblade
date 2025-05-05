@@ -26,7 +26,7 @@ export const load: PageServerLoad = async ({ locals }) => {
                 EXISTS(
                     SELECT 1 FROM email_stars es 
                     WHERE es.email_id = e.id 
-                    AND es.user_email = ${userEmail}::text 
+                    AND es.user_id = ${locals.user.id}
                 ) as starred,
                 COALESCE(e.thread_id::text, e.id::text) as effective_thread_id, 
                 ROW_NUMBER() OVER(PARTITION BY COALESCE(e.thread_id::text, e.id::text) ORDER BY e.sent_at DESC) as rn,

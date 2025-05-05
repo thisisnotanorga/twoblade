@@ -20,7 +20,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
                 EXISTS(
                     SELECT 1 FROM email_stars es 
                     WHERE es.email_id = e.id 
-                    AND es.user_email = ${userEmail}::text
+                    AND es.user_id = ${locals.user.id}
                 ) as starred,
                 COALESCE(
                     array_agg(

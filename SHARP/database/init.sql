@@ -34,9 +34,8 @@ CREATE TABLE
         password_hash VARCHAR(255) NOT NULL,
         iq INTEGER,
         is_banned BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP
-        WITH
-            TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
 
 CREATE INDEX idx_users_username ON users (username);
@@ -95,19 +94,19 @@ CREATE INDEX idx_emails_thread_id ON emails(thread_id);
 CREATE TABLE
     email_stars (
         email_id INTEGER REFERENCES emails (id) ON DELETE CASCADE,
-        user_email VARCHAR(255) NOT NULL,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         starred_at TIMESTAMP
         WITH
             TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (email_id, user_email)
+            PRIMARY KEY (email_id, user_id)
     );
 
-CREATE INDEX idx_email_stars_user ON email_stars (user_email);
+CREATE INDEX idx_email_stars_user ON email_stars (user_id);
 
 CREATE TABLE
     email_drafts (
         id SERIAL PRIMARY KEY,
-        user_email VARCHAR(255) NOT NULL,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         to_address VARCHAR(255),
         subject TEXT,
         body TEXT,
@@ -121,39 +120,41 @@ CREATE TABLE
             TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
 
-CREATE INDEX idx_email_drafts_user ON email_drafts (user_email);
+CREATE INDEX idx_email_drafts_user ON email_drafts (user_id);
 
 CREATE TABLE contacts (
     id SERIAL PRIMARY KEY,
-    user_email VARCHAR(255) NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     full_name VARCHAR(255) NOT NULL,
     email_address VARCHAR(255) NOT NULL,
     tag VARCHAR(50),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_email, email_address)
+    UNIQUE(user_id, email_address) -- Changed unique constraint
 );
 
-CREATE INDEX idx_contacts_user_email ON contacts(user_email);
+CREATE INDEX idx_contacts_user_id ON contacts(user_id);
 CREATE INDEX idx_contacts_email_address ON contacts(email_address);
 
 CREATE TABLE attachments (
     id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
     key TEXT NOT NULL UNIQUE,
     filename TEXT NOT NULL,
-    size INTEGER NOT NULL CHECK (size <= 26214400), -- 25MB limit
+    size INTEGER NOT NULL CHECK (size <= 26214400),
     type TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '48 hours'),
+    expires_at TIMESTAMPTZ DEFAULT NULL,
     email_id INTEGER REFERENCES emails(id) ON DELETE SET NULL,
     status TEXT NOT NULL DEFAULT 'pending'
 );
 
+CREATE INDEX idx_attachments_user_id ON attachments(user_id);
 CREATE INDEX idx_attachments_expires ON attachments(expires_at);
 CREATE INDEX idx_attachments_email ON attachments(email_id);
 
 CREATE TABLE user_storage_limits (
-    user_id INTEGER PRIMARY KEY REFERENCES users(id),
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     storage_limit BIGINT NOT NULL DEFAULT 1073741824, -- 1GB in bytes
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -165,13 +166,17 @@ BEGIN
     RETURN COALESCE((
         SELECT SUM(a.size)
         FROM attachments a
-        JOIN emails e ON a.email_id = e.id
-        JOIN users u ON 
-            (e.from_address = CONCAT(u.username, '#', u.domain) OR 
-             e.to_address = CONCAT(u.username, '#', u.domain))
-        WHERE u.id = p_user_id
+        LEFT JOIN emails e ON a.email_id = e.id
+        WHERE (a.user_id = p_user_id OR 
+               (e.id IS NOT NULL AND 
+                EXISTS (SELECT 1 FROM users u 
+                        WHERE u.id = p_user_id AND 
+                              (e.from_address = CONCAT(u.username, '#', u.domain) OR 
+                               e.to_address = CONCAT(u.username, '#', u.domain))
+                       )
+               )
+              )
         AND a.status != 'failed'
-        AND a.expires_at > NOW()
     ), 0);
 END;
 $$ LANGUAGE plpgsql;

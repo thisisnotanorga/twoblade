@@ -4,14 +4,19 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import * as Card from '$lib/components/ui/card';
 	import { toast } from 'svelte-sonner';
-	import { browser } from '$app/environment';
-	import { Beaker, TestTubeDiagonal } from 'lucide-svelte';
+	import { TestTubeDiagonal } from 'lucide-svelte';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { USER_DATA } from '$lib/stores/user';
-	import { PUBLIC_DOMAIN } from '$env/static/public';
 	import { checkVocabulary } from '$lib/utils';
+	import { onDestroy } from 'svelte';
+	import { Progress } from '$lib/components/ui/progress';
+	import { Download, Trash2 } from 'lucide-svelte';
+	import { goto } from '$app/navigation';
 
 	let notificationsEnabled = $state(false);
+	let exportStatus = $state('none');
+	let exportProgress = $state(0);
+	let exportInterval: NodeJS.Timeout;
 
 	$effect(() => {
 		if ($USER_DATA?.settings) {
@@ -86,6 +91,86 @@
 					description: vocabularyDescription
 				}
 	);
+
+	async function requestDataExport() {
+		const res = await fetch('/api/settings/data-export', {
+			method: 'POST'
+		});
+		if (!res.ok) {
+			toast.error((await res.json()).message || 'Export failed');
+			return;
+		}
+		exportStatus = 'processing';
+		exportInterval = setInterval(checkExportStatus, 1000);
+	}
+
+	async function checkExportStatus() {
+		const res = await fetch('/api/settings/data-export');
+		if (!res.ok) {
+			clearInterval(exportInterval);
+			exportStatus = 'none';
+			return;
+		}
+
+		const data = await res.json();
+		if (data.status === 'processing') {
+			exportProgress = data.progress;
+		} else if (data.status === 'completed') {
+			clearInterval(exportInterval);
+			exportProgress = 100;
+			exportStatus = 'completed';
+			toast.success('Export ready! Click to download.');
+		} else {
+			clearInterval(exportInterval);
+			exportStatus = 'none';
+			exportProgress = 0;
+		}
+	}
+
+	async function handleExportButtonClick() {
+		if (exportStatus === 'completed') {
+			exportStatus = 'downloading';
+			try {
+				const res = await fetch('/api/settings/data-export?action=download');
+				if (!res.ok) throw new Error(`Failed to download`);
+
+				const blob = await res.blob();
+				const url = URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = 'user-data.json';
+				a.click();
+				URL.revokeObjectURL(url);
+
+				exportStatus = 'none';
+				exportProgress = 0;
+			} catch {
+				exportStatus = 'completed';
+				toast.error('Download failed');
+			}
+		} else if (exportStatus === 'none') {
+			requestDataExport();
+		}
+	}
+
+	async function handleDeleteAccount() {
+		if (!confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+			return;
+		}
+
+		try {
+			const res = await fetch('/api/settings', { method: 'DELETE' });
+			if (!res.ok) throw new Error('Failed to delete account');
+			toast.success('Account deleted successfully');
+			goto('/login');
+		} catch {
+			toast.error('Failed to delete account');
+		}
+	}
+
+	onDestroy(() => {
+		if (exportInterval) clearInterval(exportInterval);
+	});
 </script>
 
 <div class="container max-w-5xl">
@@ -169,15 +254,69 @@
 
 		<Card.Root>
 			<Card.Header>
-				<Card.Title>Danger Zone</Card.Title>
-				<Card.Description>Irreversible and destructive actions</Card.Description>
+				<Card.Title>Data & Privacy</Card.Title>
+				<Card.Description>Manage your data and account privacy settings</Card.Description>
 			</Card.Header>
-			<Card.Content class="space-y-4">
-				<div class="flex flex-col space-y-2">
-					<Button variant="destructive">Delete All Data</Button>
-					<p class="text-muted-foreground text-sm">
-						This will permanently delete all your emails and settings. This action cannot be undone.
+			<Card.Content class="space-y-6">
+				<div class="rounded-lg border p-4">
+					<div class="flex items-start justify-between">
+						<div class="space-y-1">
+							<div class="text-sm font-medium">Export Data</div>
+							<div class="text-muted-foreground text-sm">
+								Download a copy of all your data including emails, settings, and attachments
+							</div>
+						</div>
+						<Button
+							variant="outline"
+							disabled={exportStatus === 'processing' || exportStatus === 'downloading'}
+							onclick={handleExportButtonClick}
+							class="flex items-center gap-2"
+						>
+							<Download class="h-4 w-4" />
+							{#if exportStatus === 'processing'}
+								Preparing... ({exportProgress}%)
+							{:else if exportStatus === 'completed'}
+								Download Ready
+							{:else if exportStatus === 'downloading'}
+								Downloading...
+							{:else}
+								Export Data
+							{/if}
+						</Button>
+					</div>
+					{#if exportStatus === 'processing'}
+						<Progress value={exportProgress} class="mt-4 h-2" />
+					{/if}
+					<p class="text-muted-foreground mt-2 text-xs">
+						You can request a new export every 12 hours
 					</p>
+				</div>
+
+				<div class="border-destructive/50 bg-destructive/5 rounded-lg border p-4">
+					<div class="flex items-start justify-between">
+						<div class="space-y-1">
+							<div class="text-sm font-medium">Delete Account</div>
+							<div class="text-muted-foreground text-sm">
+								Your account will be deactivated and personal data will be removed
+							</div>
+						</div>
+						<Button
+							variant="destructive"
+							class="flex items-center gap-2"
+							onclick={handleDeleteAccount}
+						>
+							<Trash2 class="h-4 w-4" />
+							Delete Account
+						</Button>
+					</div>
+					<div class="mt-2 space-y-1 text-xs">
+						<p class="text-destructive">This action is permanent and cannot be undone</p>
+						<p class="text-muted-foreground">
+							Your username will be reserved to prevent impersonation. 
+            Email conversations will be preserved for other participants.
+            Personal data including settings, drafts, and contacts will be permanently deleted.
+						</p>
+					</div>
 				</div>
 			</Card.Content>
 		</Card.Root>

@@ -34,3 +34,30 @@ export async function POST({ request, locals }: RequestEvent) {
 
     return json({ success: true });
 }
+
+export async function DELETE({ locals }: RequestEvent) {
+    if (!locals.user) {
+        throw error(401, 'Unauthorized');
+    }
+
+    const userId = locals.user.id;
+
+    await sql.begin(async (sql) => {
+        await sql`DELETE FROM user_settings WHERE user_id = ${userId}`;
+        await sql`DELETE FROM user_secret_codes WHERE user_id = ${userId}`;
+        await sql`DELETE FROM email_stars WHERE user_id = ${userId}`;
+        await sql`DELETE FROM email_drafts WHERE user_id = ${userId}`;
+        await sql`DELETE FROM contacts WHERE user_id = ${userId}`;
+        await sql`DELETE FROM user_storage_limits WHERE user_id = ${userId}`;
+
+        await sql`
+            UPDATE users 
+            SET deleted_at = NOW(),
+                password_hash = NULL, 
+                iq = NULL
+            WHERE id = ${userId} AND deleted_at IS NULL
+        `;
+    });
+
+    return json({ success: true });
+}
