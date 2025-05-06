@@ -2,7 +2,7 @@
 	import EmailList from '$lib/components/self/EmailList.svelte';
 	import type { Email } from '$lib/types/email';
 	import { classificationStore } from '$lib/stores/classificationStore.svelte.js';
-	import { searchResults, lastSearchedQuery, clearSearch } from '$lib/stores/searchStore'; 
+	import { searchResults, lastSearchedQuery, clearSearch } from '$lib/stores/searchStore';
 
 	let { data } = $props();
 	let classification = $derived(classificationStore.currentTab);

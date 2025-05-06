@@ -9,10 +9,11 @@ export function requireAuth(event: RequestEvent) {
 }
 
 export function checkAuth(event: RequestEvent) {
-    const isAuthRoute = event.route.id?.startsWith('/(auth)');
-    const isLegalRoute = event.route.id?.startsWith('/legal');
+    const isPublicRoute = event.route.id === '/' || 
+                         event.route.id?.startsWith('/(auth)') ||
+                         event.route.id?.startsWith('/legal');
     
-    if (!isAuthRoute && !isLegalRoute) {
+    if (!isPublicRoute) {
         return requireAuth(event);
     }
     return event.locals.user;

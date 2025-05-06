@@ -10,23 +10,22 @@
 		value = $bindable(''),
 		maxlength = 20,
 		...rest
-	} = $props<{
-		domain?: string;
-		class?: string;
-		value?: string;
-		maxlength?: number;
-	} & HTMLInputAttributes>();
+	} = $props<
+		{
+			domain?: string;
+			class?: string;
+			value?: string;
+			maxlength?: number;
+		} & HTMLInputAttributes
+	>();
 </script>
 
 <div class="relative">
-	<Input
-		{...rest}
-		{maxlength}
-		class={cn('pr-[140px]', className)}
-		bind:value
-	/>
-	<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center">
+	<Input {...rest} {maxlength} class={cn('pr-[140px]', className)} bind:value />
+	<div
+		class="bg-muted/50 border-l-border pointer-events-none absolute inset-y-0 right-0 flex items-center rounded-r-md border-l"
+	>
 		<Separator orientation="vertical" class="mr-2" />
-		<span class="text-muted-foreground pr-3 ">#{ domain }</span>
+		<span class="text-muted-foreground pr-3">#{domain}</span>
 	</div>
 </div>

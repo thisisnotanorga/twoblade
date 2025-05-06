@@ -11,6 +11,7 @@
 	import DomainInput from '$lib/components/self/DomainInput.svelte';
 	import { debounce } from '$lib/utils';
 	import { PUBLIC_DOMAIN } from '$env/static/public';
+	import { page } from '$app/stores';
 
 	type Question = {
 		question: string;
@@ -27,7 +28,8 @@
 
 	let { form }: { form: ActionData } = $props();
 
-	let username = $state('');
+	let initialUsername = $page.url.searchParams.get('username') || '';
+	let username = $state(initialUsername);
 	let password = $state('');
 	let confirmPassword = $state('');
 	let isSubmitting = $state(false);

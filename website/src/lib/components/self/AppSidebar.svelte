@@ -30,7 +30,7 @@
 
 	const data = {
 		navMain: [
-			{ title: 'Inbox', url: '/index', icon: Inbox },
+			{ title: 'Inbox', url: '/inbox', icon: Inbox },
 			{ title: 'Chat', url: '/chat', icon: MessageCircle },
 			{ title: 'Starred', url: '/starred', icon: Star },
 			{ title: 'Snoozed', url: '/snoozed', icon: Clock },

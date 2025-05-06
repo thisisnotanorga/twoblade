@@ -39,7 +39,7 @@
 	const isAuthRoute = $derived(
 		page.url.pathname.startsWith('/(auth)') || page.url.pathname.startsWith('/auth')
 	);
-	const isEmailRoute = $derived(page.route.id === '/index');
+	const isEmailRoute = $derived(page.route.id === '/inbox');
 	const isChatRoute = $derived(page.route.id === '/chat');
 
 	const performSearch = async (query: string) => {
@@ -127,7 +127,7 @@
 		});
 		note.onclick = () => {
 			window.focus();
-			window.location.href = '/index';
+			window.location.href = '/inbox';
 			window.location.reload();
 		};
 	}
@@ -219,86 +219,90 @@
 <ModeWatcher />
 <Toaster richColors />
 
-{#if !isAuthRoute}
-	<Sidebar.Provider>
-		{#if !isAuthRoute && page.data.user}
-			<AppSidebar />
-		{/if}
-		<Sidebar.Inset class="sidebar-container">
+{#if page.route.id === '/'}
+	{@render children()}
+{:else}
+	{#if !isAuthRoute}
+		<Sidebar.Provider>
 			{#if !isAuthRoute && page.data.user}
-				<header
-					class="group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 flex h-12 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear"
-				>
-					<div class="flex w-full items-center gap-4 px-4 lg:px-6">
-						<Sidebar.Trigger class="-ml-1" />
-
-						<h1 class="mr-6 text-base font-medium">{$currentTab}</h1>
-
-						{#if isEmailRoute}
-							<div class="flex-1">
-								<IconInput
-									type="search"
-									icon={Search}
-									placeholder="Search emails..."
-									bind:value={$searchQuery}
-									class="h-8 w-full"
-								/>
-							</div>
-
-							<div class="hidden md:block">
-								<EmailClassificationButtons />
-							</div>
-
-							<div class="md:hidden">
-								<DropdownMenu.Root>
-									<DropdownMenu.Trigger>
-										<ChevronDown class="h-4 w-4" />
-									</DropdownMenu.Trigger>
-									<DropdownMenu.Content align="end">
-										<EmailClassificationButtons />
-									</DropdownMenu.Content>
-								</DropdownMenu.Root>
-							</div>
-						{/if}
-
-						{#if isChatRoute}
-							<div class="flex items-center gap-2">
-								<span class="relative flex h-3 w-3">
-									<span
-										class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"
-									></span>
-									<span class="relative inline-flex h-3 w-3 rounded-full bg-green-500"></span>
-								</span>
-								<span class="text-muted-foreground text-sm">{$activeUsers} online</span>
-							</div>
-						{/if}
-					</div>
-				</header>
+				<AppSidebar />
 			{/if}
+			<Sidebar.Inset class="sidebar-container">
+				{#if !isAuthRoute && page.data.user}
+					<header
+						class="group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 flex h-12 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear"
+					>
+						<div class="flex w-full items-center gap-4 px-4 lg:px-6">
+							<Sidebar.Trigger class="-ml-1" />
 
-			<div class="main-content-area">
-				<div class="@container/main flex flex-col gap-2">
-					<div class="flex flex-col gap-4 md:gap-6">
-						<div class="px-4 md:py-4 lg:px-6">
-							{@render children()}
+							<h1 class="mr-6 text-base font-medium">{$currentTab}</h1>
+
+							{#if isEmailRoute}
+								<div class="flex-1">
+									<IconInput
+										type="search"
+										icon={Search}
+										placeholder="Search emails..."
+										bind:value={$searchQuery}
+										class="h-8 w-full"
+									/>
+								</div>
+
+								<div class="hidden md:block">
+									<EmailClassificationButtons />
+								</div>
+
+								<div class="md:hidden">
+									<DropdownMenu.Root>
+										<DropdownMenu.Trigger>
+											<ChevronDown class="h-4 w-4" />
+										</DropdownMenu.Trigger>
+										<DropdownMenu.Content align="end">
+											<EmailClassificationButtons />
+										</DropdownMenu.Content>
+									</DropdownMenu.Root>
+								</div>
+							{/if}
+
+							{#if isChatRoute}
+								<div class="flex items-center gap-2">
+									<span class="relative flex h-3 w-3">
+										<span
+											class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"
+										></span>
+										<span class="relative inline-flex h-3 w-3 rounded-full bg-green-500"></span>
+									</span>
+									<span class="text-muted-foreground text-sm">{$activeUsers} online</span>
+								</div>
+							{/if}
+						</div>
+					</header>
+				{/if}
+
+				<div class="main-content-area">
+					<div class="@container/main flex flex-col gap-2">
+						<div class="flex flex-col gap-4 md:gap-6">
+							<div class="px-4 md:py-4 lg:px-6">
+								{@render children()}
+							</div>
 						</div>
 					</div>
 				</div>
-			</div>
-		</Sidebar.Inset>
-	</Sidebar.Provider>
-{:else}
-	{@render children()}
+			</Sidebar.Inset>
+		</Sidebar.Provider>
+	{:else}
+		{@render children()}
+	{/if}
+
+	<style>
+		:global(.main-content-area) {
+			height: calc(100vh - 3rem - 2rem);
+			overflow: hidden;
+		}
+
+		:global(.sidebar-container) {
+			height: calc(100vh - 3rem - 2rem);
+			overflow: hidden;
+		}
+	</style>
 {/if}
-
-<style>
-	:global(.main-content-area) {
-		height: calc(100vh - 3rem - 2rem);
-		overflow: hidden;
-	}
-
-	:global(.sidebar-container) {
-		height: calc(100vh - 3rem - 2rem);
-		overflow: hidden;
-	}
-</style>

@@ -61,7 +61,7 @@ export const actions: Actions = {
                 maxAge: 60 * 60 * 24 * 7
             });
 
-            throw redirect(303, '/');
+            throw redirect(303, '/inbox');
         } catch (error: any) {
              if (error.status && error.status >= 300 && error.status < 400) {
                  throw error;
