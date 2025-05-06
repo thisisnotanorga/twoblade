@@ -188,6 +188,17 @@
 		}
 	});
 
+	let cardVisible = $state(true);
+
+	$effect(() => {
+		if (showTest) {
+			cardVisible = false;
+			setTimeout(() => {
+				cardVisible = true;
+			}, 50);
+		}
+	});
+
 	function scrambleText(text: string) {
 		return text
 			.split('')
@@ -201,11 +212,18 @@
 	}
 </script>
 
-<div class="flex h-screen items-center justify-center">
-	<Card class={showTest ? 'w-[850px]' : 'w-[450px]'} style="transition: width 0.3s ease-in-out;">
-		<CardContent class="p-6">
-			<div class={showTest ? 'flex gap-8' : ''}>
-				<div class={showTest ? 'w-[350px]' : 'w-full'}>
+<div class="flex min-h-screen items-center justify-center p-4">
+	<Card
+		class={`${cardVisible ? 'opacity-100' : 'opacity-0'} ${
+			showTest ? 'w-[95vw] max-w-[850px]' : 'w-[95vw] max-w-[400px]'
+		} min-w-[320px]`}
+		style="transition: all 0.3s ease-in-out;"
+	>
+		<CardContent
+			class="scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20 max-h-[85vh] overflow-y-auto overflow-x-hidden p-4 md:p-6"
+		>
+			<div class="flex flex-col gap-4 md:flex-row md:gap-8">
+				<div class="w-full flex-shrink-0 md:w-[350px]">
 					<div class="mb-6 flex flex-col space-y-1.5">
 						<div
 							role="heading"
@@ -313,7 +331,8 @@
 							</Button>
 							<div class="text-center text-xs">
 								By signing up, you agree to our{' '}
-								<a href="/legal/privacy" class="text-primary hover:underline">Privacy Policy</a> and{' '}
+								<a href="/legal/privacy" class="text-primary hover:underline">Privacy Policy</a>
+								and{' '}
 								<a href="/legal/terms" class="text-primary hover:underline">Terms of Service</a>.
 							</div>
 							<div class="mt-2 text-center text-sm">
@@ -325,16 +344,19 @@
 				</div>
 
 				{#if showTest}
-					<div class="w-[400px] border-l pl-8" style="animation: fadeIn 0.5s ease-out;">
-						<div class="mb-6 flex flex-col space-y-1.5">
+					<!-- IQ Test section with flexible width on desktop -->
+					<div
+						class="animate-slide-up md:animate-fade-in w-full pl-0 md:w-[400px] md:border-l md:pl-8"
+					>
+						<div class="mb-4 flex flex-col space-y-1">
 							<div
 								role="heading"
 								aria-level={3}
-								class="text-2xl font-semibold leading-none tracking-tight"
+								class="text-xl font-semibold leading-none tracking-tight md:text-2xl"
 							>
 								IQ Test
 							</div>
-							<p class="text-muted-foreground mb-4 text-sm">
+							<p class="text-muted-foreground mb-2 text-sm">
 								{#if testCompleted}
 									Test completed successfully!
 								{:else}
@@ -343,7 +365,7 @@
 							</p>
 
 							{#if !testCompleted}
-								<div class="mt-2 flex items-center gap-2">
+								<div class="mt-1 flex items-center gap-1">
 									<Progress
 										value={currentTestSection === 'brainrot'
 											? currentSectionProgress
@@ -371,21 +393,21 @@
 						</div>
 
 						{#if testCompleted}
-							<div class="bg-primary/5 rounded-lg p-6 text-center">
-								<Check class="text-primary mx-auto h-12 w-12" />
-								<div class="mt-4 text-xl font-medium">Completed</div>
-								<p class="text-muted-foreground mt-2">
-									IQ: <span class="text-foreground text-xl font-bold">{iqScore}</span>
+							<div class="bg-primary/5 rounded-lg p-4 text-center">
+								<Check class="text-primary mx-auto h-8 w-8 md:h-12 md:w-12" />
+								<div class="mt-2 text-lg font-medium md:text-xl">Completed</div>
+								<p class="text-muted-foreground mt-1">
+									IQ: <span class="text-foreground text-lg font-bold md:text-xl">{iqScore}</span>
 								</p>
 							</div>
 						{:else if currentQuestion}
-							<div class="space-y-4">
-								<div class="select-none text-lg font-medium">
+							<div class="space-y-3">
+								<div class="select-none text-base font-medium md:text-lg">
 									{@html scrambleText(currentQuestion.question)}
 								</div>
 
-								{#if currentQuestion.imageUrls}
-									<div class="grid grid-cols-2 gap-4">
+								{#if currentQuestion?.imageUrls}
+									<div class="grid max-h-[40vh] grid-cols-2 gap-2 md:max-h-none md:gap-4">
 										{#each currentQuestion.imageUrls as imageUrl, i}
 											<button
 												type="button"
@@ -406,7 +428,7 @@
 										{#each currentQuestion.options as option, i}
 											<Button
 												variant="outline"
-												class="h-auto min-h-[2.5rem] w-full select-none justify-start whitespace-normal py-2 text-left"
+												class="h-auto min-h-[2.5rem] w-full select-none justify-start whitespace-normal py-1 text-left text-sm md:py-2 md:text-base"
 												onclick={() => handleAnswer(i)}
 											>
 												{option}
@@ -433,10 +455,54 @@
 		}
 	}
 
+	@keyframes slideUp {
+		from {
+			transform: translateY(100%);
+			opacity: 0;
+		}
+		to {
+			transform: translateY(0);
+			opacity: 1;
+		}
+	}
+
+	:global(.animate-slide-up) {
+		animation: slideUp 0.5s ease-out forwards;
+	}
+
+	:global(.animate-fade-in) {
+		animation: fadeIn 0.5s ease-out forwards;
+	}
+
+	@media (min-width: 768px) {
+		:global(.animate-slide-up) {
+			animation: none;
+		}
+	}
+
 	span {
 		user-select: none;
 		-webkit-user-select: none;
 		-moz-user-select: none;
 		-ms-user-select: none;
+	}
+
+	/* Custom scrollbar styling */
+	:global(.scrollbar-thin) {
+		scrollbar-width: thin;
+	}
+
+	:global(.scrollbar-thumb-primary\/10) {
+		scrollbar-color: rgba(var(--primary) / 0.1) transparent;
+	}
+
+	:global(.hover\:scrollbar-thumb-primary\/20:hover) {
+		scrollbar-color: rgba(var(--primary) / 0.2) transparent;
+	}
+
+	/* Add smooth width transition */
+	:global(.transition-all) {
+		transition-property: all;
+		transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 	}
 </style>

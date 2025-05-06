@@ -4,7 +4,7 @@
 	let { children } = $props();
 </script>
 
-<div class="flex min-h-[calc(100vh-3rem)] flex-col items-center justify-center gap-12 p-8">
+<div class="flex flex-col items-center justify-center">
 	{@render children()}
 </div>
 
