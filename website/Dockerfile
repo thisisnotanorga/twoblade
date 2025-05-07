@@ -29,6 +29,8 @@ FROM base-node AS build-websocket
 WORKDIR /app/websocket
 
 COPY website/websocket/package.json ./
+COPY website/websocket/tsconfig.json ./ 
+
 RUN npm install
 RUN npm install typescript ts-node @types/node
 
@@ -50,6 +52,7 @@ WORKDIR /app/websocket
 
 COPY --from=build-websocket /app/websocket/node_modules ./node_modules
 COPY --from=build-websocket /app/websocket/src ./src
+COPY --from=build-websocket /app/websocket/tsconfig.json ./tsconfig.json
 COPY --from=build-websocket /app/src/lib ../src/lib/
 
 USER node
