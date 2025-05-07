@@ -30,7 +30,7 @@ interface UserSecretCode {
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 const DATABASE_URL = process.env.DATABASE_URL!;
-const PORT = process.env.WS_PORT || 3001;
+const PORT = process.env.WS_PORT || 8080;
 
 const sql = postgres(DATABASE_URL);
 
