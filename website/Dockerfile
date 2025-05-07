@@ -21,8 +21,6 @@ RUN npm ci --include=dev
 
 COPY website/. ./
 
-RUN npm run build
-
 RUN npm prune --omit=dev
 
 FROM base-node AS build-websocket
@@ -30,13 +28,10 @@ WORKDIR /app/websocket
 
 COPY website/websocket/package.json ./
 RUN npm install
+RUN npm install typescript ts-node @types/node
 
 COPY website/websocket/src ./src/
-COPY website/src/lib /app/src/lib/
-
-RUN npm run build
-
-RUN npm prune --omit=dev
+COPY website/src/lib ../src/lib/
 
 FROM base-node AS production-main
 
@@ -52,9 +47,9 @@ FROM base-node AS production-websocket
 WORKDIR /app/websocket
 
 COPY --from=build-websocket /app/websocket/node_modules ./node_modules
-COPY --from=build-websocket /app/websocket/dist ./dist
+COPY --from=build-websocket /app/websocket/src ./src
 COPY --from=build-websocket /app/src/lib ../src/lib/
 
 USER node
 EXPOSE 8080
-CMD ["node", "dist/main.js"]
+CMD ["./node_modules/.bin/ts-node", "src/main.ts"]
