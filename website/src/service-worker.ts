@@ -4,9 +4,9 @@
 declare let self: ServiceWorkerGlobalScope;
 
 import { build, files, version } from '$service-worker';
-import { dev } from '$app/environment';
+const PUBLIC_SW_MODE = import.meta.env.DEV;
 
-if (dev) {
+if (PUBLIC_SW_MODE) {
     self.addEventListener('install', () => {
         self.skipWaiting();
     });
