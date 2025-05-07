@@ -31,14 +31,14 @@ FROM base-bun AS build-websocket
 WORKDIR /app
 
 # Copy package files and install dependencies
-COPY ../websocket/package.json ../websocket/bun.lock ./
+COPY websocket/package.json websocket/bun.lock ./
 RUN bun install --production # Install only production deps
 
 # Copy shared library files
-COPY ../src/lib/shared ./src/lib/shared/
+COPY website/src/lib/shared ./src/lib/shared/
 
 # Copy websocket source files
-COPY ../websocket/src ./src/
+COPY websocket/src ./src/
 
 # Production stage for main app
 FROM base-node AS production-main
