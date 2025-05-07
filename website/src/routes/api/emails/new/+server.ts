@@ -14,7 +14,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
             }, { status: 401 });
         }
 
-        const statusUrl = `https://${PUBLIC_DOMAIN}/api/server/health`;
+        const statusUrl = `https://${PUBLIC_DOMAIN}/sharp/api/server/health`;
         const statusResponse = await fetch(statusUrl);
 
         if (!statusResponse.ok) {
@@ -67,7 +67,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
             }, { status: 500 });
         }
 
-        const apiUrl = `https://${PUBLIC_DOMAIN}/api/send`;
+        const apiUrl = `https://${PUBLIC_DOMAIN}/sharp/api/send`;
 
         const response = await fetch(apiUrl, {
             method: 'POST',

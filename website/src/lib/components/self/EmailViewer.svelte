@@ -461,7 +461,7 @@
 
 	async function fetchServerConfig() {
 		try {
-			const response = await fetch(`https://${PUBLIC_DOMAIN}/api/server/health`);
+			const response = await fetch(`https://${PUBLIC_DOMAIN}/sharp/api/server/health`);
 			if (response.ok) {
 				serverConfig = await response.json();
 				if (serverConfig?.hashcash?.recommendedBits) {

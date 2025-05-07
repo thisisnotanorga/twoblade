@@ -529,7 +529,7 @@ function checkVocabulary(text, iq) {
     return { isValid: true, limit: maxWordLength };
 }
 
-app.post('/api/send', validateAuthToken, async (req, res) => {
+app.post('/sharp/api/send', validateAuthToken, async (req, res) => {
     let logEntry;
     let id;
     try {
@@ -673,7 +673,7 @@ app.post('/api/send', validateAuthToken, async (req, res) => {
     }
 })
 
-app.get('/api/server/health', (_, res) =>
+app.get('/sharp/api/server/health', (_, res) =>
     res.json({
         status: 'ok',
         protocol: PROTOCOL_VERSION,

@@ -13,11 +13,11 @@ const TEST_EMAIL = {
 };
 
 describe("Email API with Hashcash", () => {
-    const endpoint = `https://${PUBLIC_DOMAIN}/api/send`;
+    const endpoint = `https://${PUBLIC_DOMAIN}/sharp/api/send`;
     let serverConfig;
 
     beforeAll(async () => {
-        const healthCheck = await fetch(`https://${PUBLIC_DOMAIN}/api/server/health`);
+        const healthCheck = await fetch(`https://${PUBLIC_DOMAIN}/sharp/api/server/health`);
         if (!healthCheck.ok) {
             throw new Error("Server is not available");
         }
