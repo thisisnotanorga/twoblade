@@ -50,7 +50,7 @@ const bannedUserIds = new Set<number>();
 const io = new Server({
     cors: {
         origin: process.env.NODE_ENV === 'production'
-            ? process.env.PUBLIC_DOMAIN
+            ? `https://${process.env.PUBLIC_DOMAIN}`
             : "http://localhost:5173",
         credentials: true
     }
