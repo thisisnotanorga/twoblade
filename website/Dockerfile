@@ -38,7 +38,7 @@ RUN bun install --production
 
 COPY website/websocket/src ./src/
 
-COPY website/src/lib /app/website/src/lib/
+COPY website/src/lib /app/src/lib/
 
 # Production stage for main app
 FROM base-node AS production-main
@@ -56,7 +56,7 @@ WORKDIR /app/websocket
 COPY --from=build-websocket /app/websocket/node_modules ./node_modules
 COPY --from=build-websocket /app/websocket/src ./src
 
-COPY --from=build-websocket /app/website/src/lib ../website/src/lib/
+COPY --from=build-websocket /app/src/lib ../src/lib/
 
 EXPOSE 8080
 CMD ["bun", "run", "src/main.ts"]
