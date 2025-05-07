@@ -19,18 +19,18 @@ RUN apt-get update -qq && \
     python-is-python3 && \
     rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
 COPY website/package*.json ./
-RUN npm install --include=dev
-COPY website/.env ./.env
+RUN npm install
 COPY website/. ./
+COPY website/.env ./.env
 RUN npm run build
-RUN npm prune --omit=dev
 
 # Build stage for websocket
 FROM base-bun AS build-websocket
+WORKDIR /app
 COPY websocket/package.json websocket/bun.lock ./
 RUN bun install --production
-
 COPY website/src/lib ./src/lib/
 COPY websocket/src ./src/
 
