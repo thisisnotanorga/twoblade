@@ -52,5 +52,8 @@
 		"postgres": "^3.4.5",
 		"socket.io": "^4.8.1",
 		"socket.io-client": "^4.8.1"
+	},
+	"optionalDependencies": {
+		"@rollup/rollup-linux-x64-gnu": "4.6.1"
 	}
 }
