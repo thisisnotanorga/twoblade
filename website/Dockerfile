@@ -5,9 +5,6 @@ FROM node:${NODE_VERSION}-slim AS base-node
 WORKDIR /app
 ENV NODE_ENV="production"
 
-FROM oven/bun:latest AS base-bun
-WORKDIR /app
-
 FROM base-node AS build-main
 
 RUN apt-get update -qq && \
@@ -28,16 +25,18 @@ RUN npm run build
 
 RUN npm prune --omit=dev
 
-FROM base-bun AS build-websocket
+FROM base-node AS build-websocket
 WORKDIR /app/websocket
 
-COPY website/websocket/package.json website/websocket/bun.lock ./
-
-RUN bun install --production
+COPY website/websocket/package.json website/websocket/package-lock.json* ./
+RUN npm ci --include=dev
 
 COPY website/websocket/src ./src/
-
 COPY website/src/lib /app/src/lib/
+
+RUN npm run build
+
+RUN npm prune --omit=dev
 
 FROM base-node AS production-main
 
@@ -49,12 +48,13 @@ USER node
 EXPOSE 3000
 CMD ["node", "build/index.js"]
 
-FROM base-bun AS production-websocket
+FROM base-node AS production-websocket
 WORKDIR /app/websocket
 
 COPY --from=build-websocket /app/websocket/node_modules ./node_modules
-COPY --from=build-websocket /app/websocket/src ./src
+COPY --from=build-websocket /app/websocket/dist ./dist
 COPY --from=build-websocket /app/src/lib ../src/lib/
 
+USER node
 EXPOSE 8080
-CMD ["bun", "run", "src/main.ts"]
+CMD ["node", "dist/main.js"]
