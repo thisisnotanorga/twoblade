@@ -200,45 +200,64 @@
 </script>
 
 <nav
-	class="bg-background/80 fixed left-1/2 top-6 z-50 flex -translate-x-1/2 items-center rounded-full border px-6 py-3 shadow-lg backdrop-blur-lg"
+	class="bg-background/80 fixed left-1/2 top-2 z-50 flex -translate-x-1/2 items-center justify-between rounded-full border px-3 py-1.5 shadow-lg backdrop-blur-lg sm:px-4 sm:py-2 md:px-6 md:py-3"
 >
-	<div class="flex items-center gap-2">
-		<img src="/logo.svg" alt="Twoblade Logo" class="h-8 w-8" />
-		<span class="text-lg font-semibold">Twoblade</span>
+	<div class="mr-6 md:mr-0 flex items-center gap-1.5 sm:gap-2">
+		<img src="/logo.svg" alt="Twoblade Logo" class="h-4 w-4 sm:h-5 sm:w-5 md:h-6 md:w-6" />
+		<span class="text-xs font-semibold sm:text-sm md:text-base">Twoblade</span>
 	</div>
 
-	<div class="mx-8 flex items-center gap-6">
+	<div class="mx-2 mr-6 flex items-center gap-3 md:mx-6 md:gap-6">
 		<a
 			href="javascript:void(0)"
-			class="text-muted-foreground hover:text-primary transition-colors"
+			class="text-muted-foreground hover:text-primary text-xs transition-colors sm:text-sm md:text-base"
 			onclick={() => handleNavLinkClick(aboutTextState)}>{aboutText}</a
 		>
 		<a
 			href="javascript:void(0)"
-			class="text-muted-foreground hover:text-primary transition-colors"
+			class="text-muted-foreground hover:text-primary text-xs transition-colors sm:text-sm md:text-base"
 			onclick={() => handleNavLinkClick(docsTextState)}>{docsText}</a
 		>
 		<a
 			href="javascript:void(0)"
-			class="text-muted-foreground hover:text-primary transition-colors"
+			class="text-muted-foreground hover:text-primary text-xs transition-colors sm:text-sm md:text-base"
 			onclick={() => handleNavLinkClick(pricingTextState)}>{pricingText}</a
 		>
 	</div>
 
-	<div class="flex items-center gap-2">
-		<Button variant="ghost" size="icon" onclick={handleModeToggle}>
+	<div class="flex items-center gap-1.5 sm:gap-2 md:gap-3">
+		<Button
+			variant="ghost"
+			size="icon"
+			class="h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9"
+			onclick={handleModeToggle}
+		>
 			{#if mode.current === 'light'}
-				<Moon class="h-5 w-5" />
+				<Moon class="h-3.5 w-3.5 sm:h-4 sm:w-4 md:h-5 md:w-5" />
 			{:else}
-				<Sun class="h-5 w-5" />
+				<Sun class="h-3.5 w-3.5 sm:h-4 sm:w-4 md:h-5 md:w-5" />
 			{/if}
 		</Button>
-
 		{#if $USER_DATA}
-			<Button href="/inbox" variant="default">Open</Button>
+			<Button
+				href="/inbox"
+				variant="default"
+				class="px-2 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm md:px-4 md:py-2 md:text-base"
+				>Open</Button
+			>
 		{:else}
-			<Button href="/signup" variant="outline">Sign up</Button>
-			<Button href="/login" variant="default">Login</Button>
+			<Button
+				href="/signup"
+				variant="outline"
+				class="hidden px-2 py-1 text-xs sm:inline-flex sm:px-3 sm:py-1.5 sm:text-sm md:px-4 md:py-2 md:text-base"
+				>Sign up</Button
+			>
+			<Button
+				href="/login"
+				variant="default"
+				class="px-2 py-1 text-xs sm:px-3 sm:py-1.5 sm:text-sm md:px-4 md:py-2 md:text-base"
+				>Login</Button
+			>
 		{/if}
 	</div>
 </nav>
