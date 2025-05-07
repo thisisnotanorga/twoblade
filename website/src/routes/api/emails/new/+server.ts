@@ -16,7 +16,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 
         const statusUrl = `https://${PUBLIC_DOMAIN}/sharp/api/server/health`;
         const statusResponse = await fetch(statusUrl);
-
+console.log('Status response:', statusResponse.status, statusResponse.statusText);
         if (!statusResponse.ok) {
             return json({
                 status: 'error',
