@@ -23,12 +23,12 @@ if (PUBLIC_SW_MODE) {
         ...build, // the app itself
         ...files, // everything in `static`
         '/', // explicitly cache the root route
-        '/index', // explicitly cache the index route
+        '/inbox', // explicitly cache the index route
     ];
 
     // Add all critical API endpoints
     const DATA_ROUTES = [
-        '/index/__data.json',
+        '/inbox/__data.json',
         '/api/user',
         '/api/settings'
     ];
