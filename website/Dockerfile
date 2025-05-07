@@ -32,10 +32,12 @@ COPY website/websocket/package.json ./
 COPY website/websocket/tsconfig.json ./ 
 
 RUN npm install
-RUN npm install typescript ts-node @types/node
+RUN npm install typescript @types/node
 
 COPY website/websocket/src ./src/
 COPY website/src/lib ../src/lib/
+
+RUN npx tsc --project tsconfig.json
 
 FROM base-node AS production-main
 
@@ -51,10 +53,9 @@ FROM base-node AS production-websocket
 WORKDIR /app/websocket
 
 COPY --from=build-websocket /app/websocket/node_modules ./node_modules
-COPY --from=build-websocket /app/websocket/src ./src
-COPY --from=build-websocket /app/websocket/tsconfig.json ./tsconfig.json
+COPY --from=build-websocket /app/websocket/dist ./dist
 COPY --from=build-websocket /app/src/lib ../src/lib/
 
 USER node
 EXPOSE 8080
-CMD ["node", "--loader", "ts-node/esm", "src/main.ts"]
+CMD ["node", "dist/main.js"]
