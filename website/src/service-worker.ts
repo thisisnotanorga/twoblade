@@ -22,7 +22,7 @@ if (PUBLIC_SW_MODE) {
     const ASSETS = [
         ...build, // the app itself
         ...files, // everything in `static`
-        '/', // explicitly cache the root route
+        // '/', // explicitly cache the root route - REMOVED
         '/inbox', // explicitly cache the index route
     ];
 
@@ -120,10 +120,11 @@ if (PUBLIC_SW_MODE) {
 
                 // For navigation requests, serve index
                 if (event.request.mode === 'navigate') {
-                    const indexResponse = await cache.match('/');
-                    if (indexResponse) {
-                        return indexResponse;
-                    }
+                    // const indexResponse = await cache.match('/'); // removed
+                    // if (indexResponse) {
+                    //     return indexResponse;
+                    // }
+                    return fetch(event.request); // Fetch from network instead
                 }
 
                 // Return a proper error response
