@@ -54,4 +54,4 @@ COPY --from=build-websocket /app/src/lib ../src/lib/
 
 USER node
 EXPOSE 8080
-CMD ["./node_modules/.bin/ts-node", "src/main.ts"]
+CMD ["./node_modules/.bin/ts-node", "--esm", "--project", "tsconfig.json", "src/main.ts"]
