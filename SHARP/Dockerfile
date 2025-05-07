@@ -2,10 +2,11 @@ FROM oven/bun:latest
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY SHARP/package*.json ./
+
 RUN bun install
 
-COPY . .
+COPY SHARP/. .
 
 EXPOSE 5000 5001
 
