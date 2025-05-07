@@ -28,8 +28,8 @@ RUN npm prune --omit=dev
 FROM base-node AS build-websocket
 WORKDIR /app/websocket
 
-COPY website/websocket/package.json website/websocket/package-lock.json* ./
-RUN npm ci --include=dev
+COPY website/websocket/package.json ./
+RUN npm install
 
 COPY website/websocket/src ./src/
 COPY website/src/lib /app/src/lib/
