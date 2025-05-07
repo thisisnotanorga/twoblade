@@ -35,7 +35,6 @@ RUN npm install
 RUN npm install typescript @types/node clsx tailwind-merge
 
 COPY website/websocket/src ./src/
-COPY website/src/lib ../src/lib/
 
 RUN npx tsc --project tsconfig.json
 
@@ -54,7 +53,6 @@ WORKDIR /app/websocket
 
 COPY --from=build-websocket /app/websocket/node_modules ./node_modules
 COPY --from=build-websocket /app/websocket/dist ./dist
-COPY --from=build-websocket /app/src/lib ../src/lib/
 
 USER node
 EXPOSE 8080
