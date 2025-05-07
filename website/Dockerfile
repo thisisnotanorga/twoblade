@@ -30,15 +30,15 @@ RUN npm prune --omit=dev
 
 # Build stage for websocket
 FROM base-bun AS build-websocket
-WORKDIR /app/websocket_project_root
+# WORKDIR /app is inherited from base-bun
 
-COPY websocket/package.json websocket/bun.lock ./
-COPY websocket/tsconfig.json ./
-COPY websocket/src ./src
+COPY websocket/package.json websocket/bun.lock ./websocket/
+COPY websocket/tsconfig.json ./websocket/
+COPY websocket/src ./websocket/src/
 
-RUN mkdir -p /app/website/src
-COPY website/src/lib /app/website/src/lib/
+COPY website/src/lib ./website/src/lib/
 
+WORKDIR /app/websocket
 RUN bun install --production
 
 # Production stage for main app
@@ -53,18 +53,15 @@ CMD ["node", "build/index.js"]
 
 # Production stage for websocket
 FROM base-bun AS production-websocket
-# Set WORKDIR consistent with the build stage
-WORKDIR /app/websocket_project_root
 
-COPY --from=build-websocket /app/websocket_project_root/node_modules ./node_modules
-COPY --from=build-websocket /app/websocket_project_root/src ./src
-COPY --from=build-websocket /app/websocket_project_root/tsconfig.json ./ # Bun might need this for runtime path resolution
-COPY --from=build-websocket /app/website/src/lib /app/website/src/lib/
+WORKDIR /app/websocket
 
-# The .env file variables are injected by docker-compose's env_file,
-# so no need to COPY .env here for process.env to work.
+COPY --from=build-websocket /app/websocket/node_modules ./node_modules
+COPY --from=build-websocket /app/websocket/src ./src
+COPY --from=build-websocket /app/websocket/tsconfig.json ./tsconfig.json
+
+COPY --from=build-websocket /app/website/src/lib ../website/src/lib/
 
 EXPOSE 8080
 
-# CMD should be relative to the WORKDIR /app/websocket_project_root
 CMD ["bun", "run", "src/main.ts"]
