@@ -3,7 +3,6 @@
 # Base Node.js stage
 FROM node:20-slim AS base-node
 WORKDIR /app
-ENV NODE_ENV="production"
 
 # Base Bun stage for websocket
 FROM oven/bun:latest AS base-bun
@@ -21,12 +20,13 @@ RUN apt-get update -qq && \
 
 WORKDIR /app
 COPY website/package*.json ./
-RUN npm install
+# Install all dependencies including dev
+RUN NODE_ENV=development npm install
 COPY website/. ./
 COPY website/.env ./.env
 RUN npm run build
-
-RUN npm prune --production
+# Now prune for production
+RUN NODE_ENV=production npm prune --production
 
 # Build stage for websocket
 FROM base-bun AS build-websocket
