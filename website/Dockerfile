@@ -37,7 +37,6 @@ COPY websocket/package.json websocket/bun.lock ./
 RUN bun install --production
 
 COPY websocket/src ./src/
-COPY websocket/tsconfig.json ./
 
 COPY website/src/lib /app/website/src/lib/
 
