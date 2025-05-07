@@ -1,12 +1,12 @@
 import { Server } from 'socket.io';
 import { jwtVerify } from 'jose';
 import postgres from 'postgres';
-import { checkVocabulary } from '../../website/src/lib/utils';
+import { checkVocabulary } from '@lib/utils';
 import { config } from 'dotenv';
 import { join } from 'path';
-import { checkHardcore } from '../../website/src/lib/server/moderation';
+import { checkHardcore } from '@server/moderation';
 
-config({ path: join(__dirname, '../website/.env') });
+config({ path: join(__dirname, '../../website/.env') });
 
 const RATE_LIMIT = {
     messages: 3,

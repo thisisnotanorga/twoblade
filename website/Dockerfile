@@ -30,11 +30,23 @@ RUN npm prune --omit=dev
 
 # Build stage for websocket
 FROM base-bun AS build-websocket
-WORKDIR /app
-COPY websocket/package.json websocket/bun.lock ./
+WORKDIR /app/websocket_project_root
+
+COPY websocket/package.json websocket/bun.lockb ./
+COPY websocket/tsconfig.json ./
+COPY websocket/src ./src
+
+RUN mkdir -p /app/website/src
+COPY website/src/lib /app/website/src/lib/
+
 RUN bun install --production
-COPY website/src/lib ./src/lib/
-COPY websocket/src ./src/
+
+COPY website/. ./
+COPY website/.env ./.env
+
+RUN npm run build
+
+RUN npm prune --omit=dev
 
 # Production stage for main app
 FROM base-node AS production-main
@@ -48,17 +60,18 @@ CMD ["node", "build/index.js"]
 
 # Production stage for websocket
 FROM base-bun AS production-websocket
-WORKDIR /app
+# Set WORKDIR consistent with the build stage
+WORKDIR /app/websocket_project_root
 
-# Copy dependencies from build stage
-COPY --from=build-websocket /app/node_modules ./node_modules
+COPY --from=build-websocket /app/websocket_project_root/node_modules ./node_modules
+COPY --from=build-websocket /app/websocket_project_root/src ./src
+COPY --from=build-websocket /app/websocket_project_root/tsconfig.json ./ # Bun might need this for runtime path resolution
+COPY --from=build-websocket /app/website/src/lib /app/website/src/lib/
 
-COPY --from=build-websocket /app/src/lib ./src/lib/
-
-# Copy websocket source files
-COPY --from=build-websocket /app/src ./src/
+# The .env file variables are injected by docker-compose's env_file,
+# so no need to COPY .env here for process.env to work.
 
 EXPOSE 8080
 
-# Command should now work with the updated import path in main.ts
+# CMD should be relative to the WORKDIR /app/websocket_project_root
 CMD ["bun", "run", "src/main.ts"]
