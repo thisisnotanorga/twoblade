@@ -31,14 +31,14 @@ FROM base-bun AS build-websocket
 WORKDIR /app
 
 # Copy package files and install dependencies
-COPY websocket/package.json websocket/bun.lockb ./
+COPY ../websocket/package.json ../websocket/bun.lock ./
 RUN bun install --production # Install only production deps
 
 # Copy shared library files
-COPY src/lib/shared ./src/lib/shared/
+COPY ../src/lib/shared ./src/lib/shared/
 
 # Copy websocket source files
-COPY websocket/src ./websocket/src/
+COPY ../websocket/src ./src/
 
 # Production stage for main app
 FROM base-node AS production-main
@@ -60,14 +60,10 @@ COPY --from=build-websocket /app/node_modules ./node_modules
 # Copy shared library files
 COPY --from=build-websocket /app/src/lib/shared ./src/lib/shared/
 
-# Copy websocket source files into /app/src
-COPY --from=build-websocket /app/websocket/src ./src/
+# Copy websocket source files
+COPY --from=build-websocket /app/src ./src/
 
 EXPOSE 8080
-
-# Debug file structure (optional, can be removed after verification)
-RUN ls -la /app/src/lib/shared/
-RUN ls -la /app/src/
 
 # Command should now work with the updated import path in main.ts
 CMD ["bun", "run", "src/main.ts"]
