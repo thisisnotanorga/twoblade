@@ -1,14 +1,33 @@
 import { Server } from 'socket.io';
 import { jwtVerify } from 'jose';
 import postgres from 'postgres';
-import { checkVocabulary } from '../../src/lib/utils';
 import { config } from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { checkHardcore } from '../../src/lib/server/moderation';
+import { checkHardcore } from './moderation';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: join(__dirname, '../../website/.env') });
+
+function checkVocabulary(text: string, iq: number): { isValid: boolean; limit: number | null } {
+    let maxWordLength: number;
+
+    if (iq < 90) maxWordLength = 3;
+    else if (iq < 100) maxWordLength = 4;
+    else if (iq < 120) maxWordLength = 5;
+    else if (iq < 130) maxWordLength = 6;
+    else if (iq < 140) maxWordLength = 7;
+    else return { isValid: true, limit: null };
+
+    const words = text.split(/\s+/);
+    for (const word of words) {
+        const cleanedWord = word.replace(/[.,!?;:"']/g, '');
+        if (cleanedWord.length > maxWordLength) {
+            return { isValid: false, limit: maxWordLength };
+        }
+    }
+    return { isValid: true, limit: maxWordLength };
+}
 
 const RATE_LIMIT = {
     messages: 3,
@@ -49,9 +68,7 @@ const bannedUserIds = new Set<number>();
 
 const io = new Server({
     cors: {
-        origin: process.env.NODE_ENV === 'production'
-            ? `https://${process.env.PUBLIC_DOMAIN}`
-            : "http://localhost:5173",
+        origin: [`https://${process.env.PUBLIC_DOMAIN}`, "http://localhost:5173"],
         credentials: true
     }
 });
