@@ -1,14 +1,10 @@
-import { fail, redirect } from '@sveltejs/kit';
-import bcrypt from 'bcrypt';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { fail } from '@sveltejs/kit';
+import bcrypt from 'bcryptjs';
 import type { Actions, ActionData } from './$types';
 import { sql } from '$lib/server/db';
 import { PUBLIC_DOMAIN } from '$env/static/public';
 import { getSessionScore, deleteSession } from '$lib/server/iq';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const SALT_ROUNDS = 10;
 
 export const actions: Actions = {
