@@ -26,6 +26,8 @@ COPY website/. ./
 COPY website/.env ./.env
 RUN npm run build
 
+RUN npm prune --production
+
 # Build stage for websocket
 FROM base-bun AS build-websocket
 WORKDIR /app
