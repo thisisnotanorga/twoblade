@@ -30,7 +30,8 @@ RUN npm prune --omit=dev
 FROM base-bun AS build-websocket
 COPY websocket/package.json websocket/bun.lock ./
 RUN bun install --production
-COPY src/lib/shared ./src/lib/shared/
+
+COPY website/src/lib ./src/lib/
 COPY websocket/src ./src/
 
 # Production stage for main app
@@ -50,8 +51,7 @@ WORKDIR /app
 # Copy dependencies from build stage
 COPY --from=build-websocket /app/node_modules ./node_modules
 
-# Copy shared library files
-COPY --from=build-websocket /app/src/lib/shared ./src/lib/shared/
+COPY --from=build-websocket /app/src/lib ./src/lib/
 
 # Copy websocket source files
 COPY --from=build-websocket /app/src ./src/
