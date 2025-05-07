@@ -54,6 +54,8 @@ const io = new Server({
             : "http://localhost:5173",
         credentials: true
     }
+    },
+    path: '/socket.io/'
 });
 
 io.use(async (socket, next) => {
