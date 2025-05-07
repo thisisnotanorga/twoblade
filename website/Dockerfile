@@ -3,13 +3,11 @@
 # Base Node.js stage
 FROM node:20-slim AS base-node
 WORKDIR /app
-ENV NODE_ENV="production" # NODE_ENV is set to production here
+ENV NODE_ENV="production"
 
-# Base Bun stage for websocket
 FROM oven/bun:latest AS base-bun
 WORKDIR /app
 
-# Build stage for main app
 FROM base-node AS build-main # This stage inherits NODE_ENV="production"
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y \
@@ -21,16 +19,10 @@ RUN apt-get update -qq && \
 
 WORKDIR /app
 COPY website/package*.json ./
-# Use npm ci --include=dev to install all dependencies including devDependencies
-# This respects package-lock.json and works even with NODE_ENV=production
 RUN npm ci --include=dev
-# Copy the rest of the website source code
 COPY website/. ./
-# Copy the .env file if needed by the build process
 COPY website/.env ./.env
-# Now run the build, vite should be available from devDependencies
 RUN npm run build
-# Prune devDependencies after the build is complete
 RUN npm prune --production
 
 # Build stage for websocket
