@@ -4,7 +4,7 @@ import postgres from 'postgres';
 import { config } from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { checkHardcore } from './moderation';
+import { checkHardcore } from './moderation.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: join(__dirname, '../../website/.env') });

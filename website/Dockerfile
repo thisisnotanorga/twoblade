@@ -30,11 +30,10 @@ WORKDIR /app/websocket
 
 COPY website/websocket/package.json ./
 COPY website/websocket/tsconfig.json ./ 
+COPY website/websocket/src ./src/
 
 RUN npm install
 RUN npm install typescript @types/node clsx tailwind-merge
-
-COPY website/websocket/src ./src/
 
 RUN npx tsc --project tsconfig.json
 
