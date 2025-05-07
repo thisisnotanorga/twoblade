@@ -32,11 +32,12 @@ RUN npm prune --omit=dev
 FROM base-bun AS build-websocket
 WORKDIR /app/websocket
 
-COPY websocket/package.json websocket/bun.lock ./
+COPY website/websocket/package.json website/websocket/bun.lock* ./
 
 RUN bun install --production
 
-COPY websocket/src ./src/
+COPY website/websocket/src ./src/
+COPY website/websocket/tsconfig.json ./tsconfig.json
 
 COPY website/src/lib /app/website/src/lib/
 
