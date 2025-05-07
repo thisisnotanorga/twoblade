@@ -21,6 +21,8 @@ RUN npm ci --include=dev
 
 COPY website/. ./
 
+RUN npm run build
+
 RUN npm prune --omit=dev
 
 FROM base-node AS build-websocket
