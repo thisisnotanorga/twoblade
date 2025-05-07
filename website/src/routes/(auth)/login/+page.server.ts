@@ -1,8 +1,12 @@
 import { fail, redirect } from '@sveltejs/kit';
 import bcrypt from 'bcrypt';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import type { Actions } from './$types';
 import { sql } from '$lib/server/db';
 import { createAuthJWT, storeCode } from '$lib/server/jwt';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export type ActionData = {
     success?: boolean;

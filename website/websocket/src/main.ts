@@ -3,9 +3,11 @@ import { jwtVerify } from 'jose';
 import postgres from 'postgres';
 import { checkVocabulary } from '../../src/lib/utils';
 import { config } from 'dotenv';
-import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { checkHardcore } from '../../src/lib/server/moderation';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: join(__dirname, '../../website/.env') });
 
 const RATE_LIMIT = {
