@@ -18,12 +18,15 @@ RUN apt-get update -qq && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY website/package*.json ./
-RUN npm ci --include=dev
+COPY website/package.json website/package-lock.json* ./
+RUN npm install --production=false
+
 COPY website/. ./
 COPY website/.env ./.env
+
 RUN npm run build
-RUN npm prune --production
+
+RUN npm prune --omit=dev
 
 # Build stage for websocket
 FROM base-bun AS build-websocket
