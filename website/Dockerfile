@@ -32,7 +32,7 @@ RUN npm prune --omit=dev
 FROM base-bun AS build-websocket
 WORKDIR /app/websocket_project_root
 
-COPY websocket/package.json websocket/bun.lockb ./
+COPY websocket/package.json websocket/bun.lock ./
 COPY websocket/tsconfig.json ./
 COPY websocket/src ./src
 
@@ -40,13 +40,6 @@ RUN mkdir -p /app/website/src
 COPY website/src/lib /app/website/src/lib/
 
 RUN bun install --production
-
-COPY website/. ./
-COPY website/.env ./.env
-
-RUN npm run build
-
-RUN npm prune --omit=dev
 
 # Production stage for main app
 FROM base-node AS production-main
