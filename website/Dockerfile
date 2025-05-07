@@ -30,14 +30,16 @@ RUN npm prune --omit=dev
 
 # Build stage for websocket
 FROM base-bun AS build-websocket
-# WORKDIR /app is inherited from base-bun
-
-COPY websocket ./websocket/
-
-COPY website/src/lib ./website/src/lib/
-
 WORKDIR /app/websocket
+
+COPY websocket/package.json websocket/bun.lock ./
+
 RUN bun install --production
+
+COPY websocket/src ./src/
+COPY websocket/tsconfig.json ./
+
+COPY website/src/lib /app/website/src/lib/
 
 # Production stage for main app
 FROM base-node AS production-main
