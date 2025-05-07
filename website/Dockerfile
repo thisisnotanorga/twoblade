@@ -8,7 +8,7 @@ ENV NODE_ENV="production"
 FROM oven/bun:latest AS base-bun
 WORKDIR /app
 
-FROM base-node AS build-main # This stage inherits NODE_ENV="production"
+FROM base-node AS build-main
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y \
     build-essential \
