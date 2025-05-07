@@ -1,10 +1,10 @@
 import { Server } from 'socket.io';
 import { jwtVerify } from 'jose';
 import postgres from 'postgres';
-import { checkVocabulary } from '../website/src/lib/utils';
+import { checkVocabulary } from '../../website/src/lib/utils';
 import { config } from 'dotenv';
 import { join } from 'path';
-import { checkHardcore } from '../website/src/lib/server/moderation';
+import { checkHardcore } from '../../website/src/lib/server/moderation';
 
 config({ path: join(__dirname, '../website/.env') });
 
