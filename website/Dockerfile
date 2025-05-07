@@ -55,7 +55,6 @@ WORKDIR /app/websocket
 
 COPY --from=build-websocket /app/websocket/node_modules ./node_modules
 COPY --from=build-websocket /app/websocket/src ./src
-COPY --from=build-websocket /app/websocket/tsconfig.json ./tsconfig.json
 
 COPY --from=build-websocket /app/website/src/lib ../website/src/lib/
 
