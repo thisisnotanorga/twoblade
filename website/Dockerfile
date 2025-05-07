@@ -32,7 +32,7 @@ COPY website/websocket/package.json ./
 COPY website/websocket/tsconfig.json ./ 
 
 RUN npm install
-RUN npm install typescript @types/node
+RUN npm install typescript @types/node clsx tailwind-merge
 
 COPY website/websocket/src ./src/
 COPY website/src/lib ../src/lib/
