@@ -1,22 +1,23 @@
+version: '3.8'
 services:
   app:
     build:
-      context: ..
+      context: .
       target: production-main
-      dockerfile: Dockerfile
+      dockerfile: website/Dockerfile
     ports:
       - "3002:3000"
     env_file:
-      - .env
+      - website/.env
     depends_on:
       - websocket
 
   websocket:
     build:
-      context: ..
+      context: .
       target: production-websocket
-      dockerfile: Dockerfile
+      dockerfile: website/Dockerfile
     ports:
       - "8081:8080"
     env_file:
-      - .env
+      - website/.env

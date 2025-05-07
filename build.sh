@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# Ensure we're in the project root
+cd "$(dirname "$0")"
+
 echo "Pulling latest changes..."
 git pull
 

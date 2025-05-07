@@ -19,25 +19,18 @@ RUN apt-get update -qq && \
     python-is-python3 && \
     rm -rf /var/lib/apt/lists/*
 
-COPY package*.json ./
+COPY website/package*.json ./
 RUN npm ci --include=dev
-COPY .env .env
-COPY . .
+COPY website/.env ./.env
+COPY website/. ./
 RUN npm run build
 RUN npm prune --omit=dev
 
 # Build stage for websocket
 FROM base-bun AS build-websocket
-WORKDIR /app
-
-# Copy package files and install dependencies
 COPY websocket/package.json websocket/bun.lock ./
-RUN bun install --production # Install only production deps
-
-# Copy shared library files
-COPY website/src/lib/shared ./src/lib/shared/
-
-# Copy websocket source files
+RUN bun install --production
+COPY src/lib/shared ./src/lib/shared/
 COPY websocket/src ./src/
 
 # Production stage for main app
