@@ -20,7 +20,7 @@ RUN apt-get update -qq && \
     rm -rf /var/lib/apt/lists/*
 
 COPY website/package*.json ./
-RUN npm ci --include=dev
+RUN npm install --include=dev
 COPY website/.env ./.env
 COPY website/. ./
 RUN npm run build
