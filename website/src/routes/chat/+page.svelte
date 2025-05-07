@@ -58,6 +58,7 @@
 
 	function setupSocket() {
 		socket = io(PUBLIC_WEBSOCKET_URL, {
+			path: '/ws/socket.io',
 			auth: { token: data.token }
 		});
 
