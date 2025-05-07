@@ -32,9 +32,7 @@ RUN npm prune --omit=dev
 FROM base-bun AS build-websocket
 # WORKDIR /app is inherited from base-bun
 
-COPY websocket/package.json websocket/bun.lock ./websocket/
-COPY websocket/tsconfig.json ./websocket/
-COPY websocket/src ./websocket/src/
+COPY websocket ./websocket/
 
 COPY website/src/lib ./website/src/lib/
 
@@ -51,9 +49,7 @@ USER node
 EXPOSE 3000
 CMD ["node", "build/index.js"]
 
-# Production stage for websocket
 FROM base-bun AS production-websocket
-
 WORKDIR /app/websocket
 
 COPY --from=build-websocket /app/websocket/node_modules ./node_modules
@@ -63,5 +59,4 @@ COPY --from=build-websocket /app/websocket/tsconfig.json ./tsconfig.json
 COPY --from=build-websocket /app/website/src/lib ../website/src/lib/
 
 EXPOSE 8080
-
 CMD ["bun", "run", "src/main.ts"]
